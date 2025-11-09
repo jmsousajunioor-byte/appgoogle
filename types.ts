@@ -92,7 +92,7 @@ export interface Transaction {
     };
 }
 
-export type NewTransaction = Omit<Transaction, 'id' | 'isInstallment' | 'installment'>;
+export type NewTransaction = Omit<Transaction, 'id'>;
 
 export interface InvoiceTransaction {
     id: string;

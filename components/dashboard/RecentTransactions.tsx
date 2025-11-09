@@ -42,6 +42,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transactions, o
                     {tx.type === 'income' ? '+' : '-'} {formatCurrency(tx.amount)}
                 </p>
                 <p className="text-sm text-neutral-400 dark:text-neutral-500">{formatDate(tx.date)}</p>
+                {tx.isInstallment && tx.installment && (
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500">
+                        Parcela {tx.installment.current}/{tx.installment.total}
+                    </p>
+                )}
             </div>
           </li>
         ))}

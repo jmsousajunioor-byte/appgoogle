@@ -29,6 +29,8 @@ const App: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
   const [budgets, setBudgets] = useState<Budget[]>(mockBudgets);
   const [goals, setGoals] = useState<Goal[]>(mockGoals);
+  const [cardSettings, setCardSettings] = useState<Record<string, { alertThreshold: number }>>({});
+
 
   // --- DERIVED STATE & MEMOS ---
   const enhancedCards = useMemo(() => {
@@ -61,7 +63,7 @@ const App: React.FC = () => {
 
   // --- HANDLER FUNCTIONS ---
   const handleAddCard = (newCard: NewCard) => {
-    const card: CardType = { ...newCard, id: `c${Date.now()}` };
+    const card: CardType = { ...newCard, id: `c${Date.now()}`, gradient: { start: '#4B5563', end: '#1F2937' } };
     setCards(prev => [...prev, card]);
   };
 
@@ -71,7 +73,7 @@ const App: React.FC = () => {
   };
 
   const handleAddTransaction = (newTx: NewTransaction) => {
-    const tx: Transaction = { ...newTx, id: `t${Date.now()}`, isInstallment: false };
+    const tx: Transaction = { ...newTx, id: `t${Date.now()}` };
     setTransactions(prev => [tx, ...prev]);
 
     // Update account balance
@@ -102,13 +104,27 @@ const App: React.FC = () => {
     setGoals(prev => [...prev, goal]);
   };
 
+  const handleUpdateCardSettings = (cardId: string, threshold: number) => {
+    setCardSettings(prev => ({
+        ...prev,
+        [cardId]: { alertThreshold: threshold },
+    }));
+  };
+
   // --- PAGE RENDERING ---
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
         return <DashboardPage summary={dashboardSummary} cards={enhancedCards} transactions={transactions} onAddTransaction={handleAddTransaction} onNavigate={setCurrentPage} />;
       case 'credit-cards':
-        return <CreditCardsPage cards={enhancedCards} invoices={invoices} onAddCard={handleAddCard} onUpdateInvoiceStatus={handleUpdateInvoiceStatus} />;
+        return <CreditCardsPage 
+                    cards={enhancedCards} 
+                    invoices={invoices} 
+                    onAddCard={handleAddCard} 
+                    onUpdateInvoiceStatus={handleUpdateInvoiceStatus} 
+                    cardSettings={cardSettings}
+                    onUpdateCardSettings={handleUpdateCardSettings}
+                />;
       case 'bank-accounts':
         return <BankAccountsPage accounts={bankAccounts} onAddAccount={handleAddBankAccount} />;
       case 'transactions':

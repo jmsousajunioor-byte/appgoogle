@@ -5,6 +5,7 @@ import RealisticCard from './RealisticCard';
 import OverviewTab from './tabs/OverviewTab';
 import InvoicesTab from './tabs/InvoicesTab';
 import CardTransactionsTab from './tabs/CardTransactionsTab';
+import CardSettingsTab from './tabs/CardSettingsTab';
 
 // FIX: Update the card prop to be the enhanced card type to match what child components expect.
 type EnhancedCard = Card & { availableLimit: number; currentInvoiceAmount: number; dueDate: string; invoiceStatus: InvoiceStatus; };
@@ -15,11 +16,13 @@ interface CardDetailModalProps {
   card: EnhancedCard;
   invoices: Invoice[];
   onUpdateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
+  cardSettings: Record<string, { alertThreshold: number }>;
+  onUpdateCardSettings: (cardId: string, threshold: number) => void;
 }
 
-type Tab = 'overview' | 'invoices' | 'transactions';
+type Tab = 'overview' | 'invoices' | 'transactions' | 'settings';
 
-const CardDetailModal: React.FC<CardDetailModalProps> = ({ isOpen, onClose, card, invoices, onUpdateInvoiceStatus }) => {
+const CardDetailModal: React.FC<CardDetailModalProps> = ({ isOpen, onClose, card, invoices, onUpdateInvoiceStatus, cardSettings, onUpdateCardSettings }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const currentInvoice = invoices.find(inv => inv.status === InvoiceStatus.Pending) || invoices.sort((a,b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
 
@@ -45,12 +48,18 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({ isOpen, onClose, card
               <TabButton tab="overview" label="Visão Geral" />
               <TabButton tab="invoices" label="Faturas" />
               <TabButton tab="transactions" label="Lançamentos Futuros" />
+              <TabButton tab="settings" label="Configurações" />
           </div>
         </div>
         <div className="md:col-span-2">
           {activeTab === 'overview' && currentInvoice && <OverviewTab card={card} invoice={currentInvoice} onUpdateInvoiceStatus={onUpdateInvoiceStatus} />}
           {activeTab === 'invoices' && <InvoicesTab invoices={invoices} />}
           {activeTab === 'transactions' && currentInvoice && <CardTransactionsTab invoice={currentInvoice} />}
+          {activeTab === 'settings' && <CardSettingsTab 
+              cardId={card.id}
+              currentThreshold={cardSettings[card.id]?.alertThreshold}
+              onUpdate={onUpdateCardSettings}
+            />}
         </div>
       </div>
     </Modal>

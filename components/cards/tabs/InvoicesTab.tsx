@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Invoice } from '../../../types';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
 import Badge from '../../ui/Badge';
 import { Icon } from '../../ui/Icon';
 import Button from '../../ui/Button';
+import InvoiceDetailModal from '../InvoiceDetailModal';
 
 interface InvoicesTabProps {
   invoices: Invoice[];
 }
 
 const InvoicesTab: React.FC<InvoicesTabProps> = ({ invoices }) => {
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
   return (
     <div className="space-y-6">
         <header className="flex justify-between items-center">
@@ -42,7 +45,7 @@ const InvoicesTab: React.FC<InvoicesTabProps> = ({ invoices }) => {
                                     <Badge status={invoice.status} />
                                 </div>
                                 <div className="flex justify-end space-x-2">
-                                    <Button variant="ghost" size="sm">Detalhes</Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedInvoice(invoice)}>Detalhes</Button>
                                     {invoice.status === 'Paid' && (
                                         <Button variant="ghost" size="sm"><Icon icon="copy" className="h-5 w-5" /></Button>
                                     )}
@@ -53,6 +56,13 @@ const InvoicesTab: React.FC<InvoicesTabProps> = ({ invoices }) => {
                 ))}
             </ul>
         </div>
+        {selectedInvoice && (
+            <InvoiceDetailModal
+                isOpen={!!selectedInvoice}
+                onClose={() => setSelectedInvoice(null)}
+                invoice={selectedInvoice}
+            />
+        )}
     </div>
   );
 };

@@ -1,7 +1,5 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardBrand } from '../../types';
-import { Icon } from '../ui/Icon';
 
 interface RealisticCardProps {
   card: Card;
@@ -18,20 +16,40 @@ const brandLogos: Record<CardBrand, string> = {
 const RealisticCard: React.FC<RealisticCardProps> = ({ card, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     setMousePos({ x, y });
   };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    // Reset mouse position to the center to prevent a jump on re-entry
+    if (cardRef.current) {
+        setMousePos({ x: cardRef.current.clientWidth / 2, y: cardRef.current.clientHeight / 2 });
+    }
+  };
   
+  const rect = cardRef.current?.getBoundingClientRect();
+  const normalizedX = (isHovered && rect && rect.width > 0) ? (mousePos.x / rect.width) - 0.5 : 0;
+  const normalizedY = (isHovered && rect && rect.height > 0) ? (mousePos.y / rect.height) - 0.5 : 0;
+
+  // 3D rotation for the card itself
+  const rotateY = normalizedX * 25;
+  const rotateX = -normalizedY * 25;
+  
+  // Parallax translation for the inner content
+  const parallaxTranslateX = -normalizedX * 15;
+  const parallaxTranslateY = -normalizedY * 15;
+
   const cardStyle = {
     background: `linear-gradient(135deg, ${card.gradient.start}, ${card.gradient.end})`,
-    transform: isHovered 
-      ? `perspective(1000px) rotateY(${(mousePos.x / 350 - 0.5) * 15}deg) rotateX(${-(mousePos.y / 220 - 0.5) * 15}deg) scale3d(1.05, 1.05, 1.05)` 
-      : 'perspective(1000px) rotateY(0deg) rotateX(0deg) scale3d(1, 1, 1)',
-    transition: 'transform 0.2s ease-out',
+    transform: `perspective(1000px) rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale3d(${isHovered ? 1.05 : 1}, ${isHovered ? 1.05 : 1}, ${isHovered ? 1.05 : 1})`,
+    transition: 'transform 0.1s ease-out',
   };
 
   const glareStyle = {
@@ -40,34 +58,43 @@ const RealisticCard: React.FC<RealisticCardProps> = ({ card, onClick }) => {
     opacity: isHovered ? 1 : 0,
   };
 
+  const contentStyle = {
+      transform: `translate3d(${parallaxTranslateX}px, ${parallaxTranslateY}px, 0)`,
+      transition: 'transform 0.1s ease-out',
+  };
+
   return (
     <div 
+      ref={cardRef}
       className={`relative w-full aspect-[1.586] rounded-2xl text-white p-6 flex flex-col justify-between shadow-lg cursor-pointer`}
       style={cardStyle}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
     >
       <div className="absolute inset-0 rounded-2xl overflow-hidden" style={glareStyle}></div>
       
-      <div className="flex justify-between items-start z-10">
-        <span className="font-bold">{card.nickname}</span>
-        <img src={brandLogos[card.brand]} alt={card.brand} className="h-8 object-contain" />
-      </div>
-
-      <div className="z-10">
-        <div className="font-mono text-2xl tracking-widest mb-4">
-          •••• •••• •••• {card.last4}
+      {/* This wrapper holds all content and will have the parallax transform applied */}
+      <div className="relative z-10 flex flex-col justify-between h-full" style={contentStyle}>
+        <div className="flex justify-between items-start">
+          <span className="font-bold">{card.nickname}</span>
+          <img src={brandLogos[card.brand]} alt={card.brand} className="h-8 object-contain" />
         </div>
-        <div className="flex justify-between items-end text-sm">
-          <div>
-            <span className="opacity-70 block text-xs">Card Holder</span>
-            <span className="font-medium tracking-wider">{card.holderName.toUpperCase()}</span>
+
+        <div>
+          <div className="font-mono text-2xl tracking-widest mb-4">
+            •••• •••• •••• {card.last4}
           </div>
-          <div>
-            <span className="opacity-70 block text-xs">Expires</span>
-            <span className="font-medium tracking-wider">{card.expiration}</span>
+          <div className="flex justify-between items-end text-sm">
+            <div>
+              <span className="opacity-70 block text-xs">Card Holder</span>
+              <span className="font-medium tracking-wider">{card.holderName.toUpperCase()}</span>
+            </div>
+            <div>
+              <span className="opacity-70 block text-xs">Expires</span>
+              <span className="font-medium tracking-wider">{card.expiration}</span>
+            </div>
           </div>
         </div>
       </div>

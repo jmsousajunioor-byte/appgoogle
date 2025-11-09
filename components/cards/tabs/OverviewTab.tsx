@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, Invoice, InvoiceStatus } from '../../../types';
 import { daysRemaining, formatCurrency } from '../../../utils/formatters';
 import ProgressBar from '../../ui/ProgressBar';
 import Badge from '../../ui/Badge';
 import InstallmentList from '../InstallmentList';
 import Button from '../../ui/Button';
+import InvoiceDetailModal from '../InvoiceDetailModal';
 
 interface OverviewTabProps {
   card: Card & { availableLimit: number, currentInvoiceAmount: number, dueDate: string, invoiceStatus: InvoiceStatus };
@@ -13,6 +14,7 @@ interface OverviewTabProps {
 }
 
 const OverviewTab: React.FC<OverviewTabProps> = ({ card, invoice, onUpdateInvoiceStatus }) => {
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
   const limitUtilization = (card.currentInvoiceAmount / card.limit) * 100;
   const remainingDays = daysRemaining(card.dueDate);
 
@@ -35,7 +37,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ card, invoice, onUpdateInvoic
             <span className="text-neutral-500 dark:text-neutral-400">Status</span>
             <Badge status={invoice.status} />
           </div>
-          <div className="!mt-6 flex space-x-2">
+          <div className="!mt-6 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
             <Button 
               variant="primary" 
               className="w-full"
@@ -44,7 +46,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ card, invoice, onUpdateInvoic
             >
               {invoice.status === InvoiceStatus.Paid ? 'Fatura Paga' : 'Marcar como Paga'}
             </Button>
-            <Button variant="secondary" className="w-full">Ver Extrato</Button>
+            <Button variant="secondary" className="w-full" onClick={() => setIsStatementModalOpen(true)}>Ver Extrato</Button>
           </div>
         </div>
       </div>
@@ -74,6 +76,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ card, invoice, onUpdateInvoic
             <InstallmentList installments={invoice.installments} />
         </div>
       </div>
+
+      {isStatementModalOpen && (
+          <InvoiceDetailModal
+              isOpen={isStatementModalOpen}
+              onClose={() => setIsStatementModalOpen(false)}
+              invoice={invoice}
+          />
+      )}
     </div>
   );
 };

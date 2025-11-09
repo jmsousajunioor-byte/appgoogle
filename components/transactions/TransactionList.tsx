@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { BankAccount, Card, Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { Icon } from '../ui/Icon';
@@ -6,6 +6,7 @@ import { Icon } from '../ui/Icon';
 interface TransactionListProps {
   transactions: Transaction[];
   accounts: (BankAccount | Card)[];
+  onEdit: (transaction: Transaction) => void;
 }
 
 const getCategoryIcon = (category: string): React.ComponentProps<typeof Icon>['icon'] => {
@@ -23,7 +24,42 @@ const getCategoryIcon = (category: string): React.ComponentProps<typeof Icon>['i
     }
 }
 
-const TransactionList: React.FC<TransactionListProps> = ({ transactions, accounts }) => {
+const TransactionMenu: React.FC<{ onEdit: () => void }> = ({ onEdit }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-1 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700">
+                <Icon icon="dots-horizontal" className="h-5 w-5 text-neutral-500" />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-neutral-800 rounded-lg shadow-xl z-10 border border-neutral-200 dark:border-neutral-700">
+                    <button 
+                        onClick={() => { onEdit(); setIsOpen(false); }}
+                        className="w-full text-left flex items-center space-x-2 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                    >
+                        <Icon icon="pencil" className="h-4 w-4" />
+                        <span>Editar</span>
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const TransactionList: React.FC<TransactionListProps> = ({ transactions, accounts, onEdit }) => {
 
     const getSourceName = (sourceId: string) => {
         const source = accounts.find(acc => acc.id === sourceId);
@@ -68,9 +104,10 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, account
                             )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500 dark:text-neutral-400">{formatDate(tx.date)}</td>
+                        {/* FIX: Changed sourceId to tx.sourceId to correctly reference the transaction's source ID. */}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500 dark:text-neutral-400">{getSourceName(tx.sourceId)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button className="text-indigo-600 hover:text-indigo-900"><Icon icon="dots-horizontal" /></button>
+                            <TransactionMenu onEdit={() => onEdit(tx)} />
                         </td>
                     </tr>
                 ))}

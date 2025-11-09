@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface IconProps extends React.SVGProps<SVGSVGElement> {
-  icon: 'credit-card' | 'calendar' | 'bar-chart' | 'pie-chart' | 'cog' | 'user' | 'transactions' | 'bank' | 'budget' | 'dashboard' | 'logout' | 'plus' | 'close' | 'chevron-down' | 'check' | 'copy' | 'arrow-up-right' | 'arrow-down-right' | 'trending-up' | 'trending-down' | 'dots-horizontal';
+  icon: 'credit-card' | 'calendar' | 'bar-chart' | 'pie-chart' | 'cog' | 'user' | 'transactions' | 'bank' | 'budget' | 'dashboard' | 'logout' | 'plus' | 'close' | 'chevron-down' | 'check' | 'copy' | 'arrow-up-right' | 'arrow-down-right' | 'trending-up' | 'trending-down' | 'dots-horizontal' | 'menu' | 'chevron-left' | 'chevron-right' | 'pencil' | 'filter';
 }
 
 const ICONS: Record<IconProps['icon'], React.ReactNode> = {
@@ -26,6 +26,11 @@ const ICONS: Record<IconProps['icon'], React.ReactNode> = {
   'trending-up': <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-3.291 3.291m3.291-3.291L19.5 3" />,
   'trending-down': <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181" />,
   'dots-horizontal': <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />,
+  'menu': <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />,
+  'chevron-left': <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />,
+  'chevron-right': <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />,
+  'pencil': <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />,
+  'filter': <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 7.923 1.254a1.125 1.125 0 01.464 1.956l-3.328 3.328a1.125 1.125 0 00-.316.794v5.352a1.125 1.125 0 01-.464 1.956l-3.328 3.328a1.125 1.125 0 01-1.956-.464V12.934a1.125 1.125 0 00-.316-.794L3.81 8.812a1.125 1.125 0 01.464-1.956A48.63 48.63 0 0112 3z" />,
 };
 
 export const Icon: React.FC<IconProps> = ({ icon, className = 'h-6 w-6', ...props }) => {

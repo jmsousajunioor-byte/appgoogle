@@ -2,9 +2,11 @@
 
 export enum CardBrand {
   Visa = 'Visa',
+  VisaSignature = 'Visa Signature',
   Mastercard = 'Mastercard',
   Amex = 'Amex',
   Elo = 'Elo',
+  Hipercard = 'Hipercard',
 }
 
 export enum InvoiceStatus {
@@ -57,11 +59,10 @@ export interface Card {
   expiration: string;
   limit: number;
   dueDateDay: number;
-  // FIX: Added gradient property to Card type.
   gradient: Gradient;
 }
 
-export type NewCard = Omit<Card, 'id' | 'gradient'>;
+export type NewCard = Omit<Card, 'id'>;
 
 export interface BankAccount {
     id: string;

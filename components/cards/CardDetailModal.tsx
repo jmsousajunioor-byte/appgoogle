@@ -4,8 +4,8 @@ import Modal from '../ui/Modal';
 import RealisticCard from './RealisticCard';
 import OverviewTab from './tabs/OverviewTab';
 import InvoicesTab from './tabs/InvoicesTab';
-import CardTransactionsTab from './tabs/CardTransactionsTab';
 import CardSettingsTab from './tabs/CardSettingsTab';
+import FutureInstallmentsTab from './tabs/FutureInstallmentsTab';
 
 // FIX: Update the card prop to be the enhanced card type to match what child components expect.
 type EnhancedCard = Card & { availableLimit: number; currentInvoiceAmount: number; dueDate: string; invoiceStatus: InvoiceStatus; };
@@ -40,9 +40,9 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({ isOpen, onClose, card
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" title="Detalhes do Cartão">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1 space-y-6">
+    <Modal isOpen={isOpen} onClose={onClose} size="4xl" title="Detalhes do Cartão">
+      <div className="grid grid-cols-1 md:grid-cols-[320px,1fr] gap-8">
+        <div className="space-y-6">
           <RealisticCard card={card} />
           <div className="flex flex-col space-y-2 p-4 bg-neutral-100 dark:bg-neutral-900 rounded-2xl">
               <TabButton tab="overview" label="Visão Geral" />
@@ -51,10 +51,10 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({ isOpen, onClose, card
               <TabButton tab="settings" label="Configurações" />
           </div>
         </div>
-        <div className="md:col-span-2">
+        <div className="h-[550px] overflow-y-auto pr-2 custom-scrollbar">
           {activeTab === 'overview' && currentInvoice && <OverviewTab card={card} invoice={currentInvoice} onUpdateInvoiceStatus={onUpdateInvoiceStatus} />}
           {activeTab === 'invoices' && <InvoicesTab invoices={invoices} />}
-          {activeTab === 'transactions' && currentInvoice && <CardTransactionsTab invoice={currentInvoice} />}
+          {activeTab === 'transactions' && currentInvoice && <FutureInstallmentsTab installments={currentInvoice.installments} />}
           {activeTab === 'settings' && <CardSettingsTab 
               cardId={card.id}
               currentThreshold={cardSettings[card.id]?.alertThreshold}
@@ -62,6 +62,27 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({ isOpen, onClose, card
             />}
         </div>
       </div>
+      <style>{`
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent; 
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #d1d5db; 
+        border-radius: 3px;
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #4b5563;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af; 
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+      }
+    `}</style>
     </Modal>
   );
 };

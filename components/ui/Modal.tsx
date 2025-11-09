@@ -6,7 +6,7 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   title?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
 }
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, title, size = 'md' }) => {
@@ -29,6 +29,10 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, title, size = 
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
     full: 'max-w-full h-full my-0 rounded-none',
   };
 
@@ -38,7 +42,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, title, size = 
       onClick={onClose}
     >
       <div 
-        className={`bg-white dark:bg-neutral-800 rounded-3xl shadow-2xl w-full flex flex-col transition-transform duration-300 transform scale-95 animate-scale-in ${sizeClasses[size]}`}
+        className={`bg-white dark:bg-neutral-800 rounded-3xl shadow-2xl w-full flex flex-col transition-transform duration-300 transform scale-95 animate-scale-in ${sizeClasses[size]} max-h-[95vh]`}
         onClick={e => e.stopPropagation()}
       >
         {title && (

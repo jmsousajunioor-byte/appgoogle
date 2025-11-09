@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Modal from '../ui/Modal';
-import Input from '../ui/Input';
-import Select from '../ui/Select';
 import Button from '../ui/Button';
-import { CardBrand, NewCard } from '../../types';
+import { CardBrand, NewCard, Card, Gradient } from '../../types';
+import RealisticCard from './RealisticCard';
+import Input from '../ui/Input';
+import { cardThemes } from '../../utils/cardThemes';
+import { Icon } from '../ui/Icon';
 
 interface AddCardModalProps {
   isOpen: boolean;
@@ -11,46 +13,195 @@ interface AddCardModalProps {
   onAddCard: (newCard: NewCard) => void;
 }
 
+const brandOptions: CardBrand[] = [CardBrand.Visa, CardBrand.VisaSignature, CardBrand.Mastercard, CardBrand.Elo, CardBrand.Amex, CardBrand.Hipercard];
+
 const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard }) => {
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
+  const [step, setStep] = useState(1);
+  const [cardData, setCardData] = useState<Omit<Card, 'id'>>({
+    nickname: '',
+    brand: CardBrand.Mastercard,
+    last4: '••••',
+    holderName: 'NOME COMPLETO',
+    expiration: 'MM/AA',
+    limit: 0,
+    dueDateDay: 1,
+    gradient: cardThemes[0].gradient,
+  });
 
-    const newCard: NewCard = {
-      nickname: data.nickname as string,
-      brand: data.brand as CardBrand,
-      last4: data.last4 as string,
-      holderName: data.holderName as string,
-      expiration: data.expiration as string,
-      limit: parseFloat(data.limit as string),
-      dueDateDay: parseInt(data.dueDateDay as string, 10),
-    };
-
-    onAddCard(newCard);
+  const handleDataChange = (newData: Partial<Omit<Card, 'id'>>) => {
+    setCardData(prev => ({ ...prev, ...newData }));
   };
 
+  const resetState = () => {
+    setStep(1);
+    setCardData({
+      nickname: '',
+      brand: CardBrand.Mastercard,
+      last4: '••••',
+      holderName: 'NOME COMPLETO',
+      expiration: 'MM/AA',
+      limit: 0,
+      dueDateDay: 1,
+      gradient: cardThemes[0].gradient,
+    });
+  }
+
+  const handleClose = () => {
+      resetState();
+      onClose();
+  }
+
+  const handleSubmit = () => {
+    onAddCard(cardData);
+    handleClose();
+  };
+
+  const renderStepContent = () => {
+    switch (step) {
+      case 1:
+        return (
+          <Input
+            label="4 Últimos Dígitos do Cartão"
+            name="last4"
+            value={cardData.last4 === '••••' ? '' : cardData.last4}
+            onChange={(e) => handleDataChange({ last4: e.target.value.replace(/\D/g, '') || '••••' })}
+            maxLength={4}
+            placeholder="1234"
+            autoFocus
+          />
+        );
+      case 2:
+        return (
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Bandeira</label>
+            <div className="grid grid-cols-3 gap-2">
+              {brandOptions.map(brand => (
+                <button
+                  key={brand}
+                  type="button"
+                  onClick={() => handleDataChange({ brand })}
+                  className={`p-2 h-14 flex items-center justify-center rounded-lg border-2 transition-all ${
+                    cardData.brand === brand ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50' : 'border-neutral-300 dark:border-neutral-600 hover:border-indigo-400'
+                  }`}
+                >
+                  <img src={RealisticCard.getBrandLogo(brand)} alt={brand} className="h-8 object-contain" />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 3:
+        return (
+            <Input
+                label="Nome no Cartão"
+                name="holderName"
+                value={cardData.holderName === 'NOME COMPLETO' ? '' : cardData.holderName}
+                onChange={(e) => handleDataChange({ holderName: e.target.value.toUpperCase() || 'NOME COMPLETO' })}
+                placeholder="JOAO DA SILVA"
+                autoFocus
+            />
+        );
+      case 4:
+        return (
+          <div className="space-y-4">
+            <Input
+              label="Validade (MM/AA)"
+              name="expiration"
+              value={cardData.expiration === 'MM/AA' ? '' : cardData.expiration}
+              onChange={(e) => {
+                  let value = e.target.value.replace(/\D/g, '');
+                  if (value.length > 2) {
+                    value = value.slice(0, 2) + '/' + value.slice(2,4);
+                  }
+                  handleDataChange({ expiration: value || 'MM/AA' })
+              }}
+              placeholder="12/28"
+              maxLength={5}
+            />
+            <Input label="Limite de Crédito" name="limit" type="number" step="0.01" placeholder="5000,00" onChange={(e) => handleDataChange({ limit: parseFloat(e.target.value) || 0 })}/>
+            <Input label="Dia de Vencimento" name="dueDateDay" type="number" min="1" max="31" placeholder="10" onChange={(e) => handleDataChange({ dueDateDay: parseInt(e.target.value, 10) || 1 })}/>
+          </div>
+        );
+      case 5:
+        return (
+            <Input
+                label="Apelido do Cartão"
+                name="nickname"
+                value={cardData.nickname}
+                onChange={(e) => handleDataChange({ nickname: e.target.value })}
+                placeholder="Ex: Cartão Pessoal"
+                autoFocus
+            />
+        );
+       case 6:
+        return (
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Tema do Cartão</label>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+               {cardThemes.map(theme => (
+                  <div key={theme.name} className="text-center">
+                      <button
+                          type="button"
+                          onClick={() => handleDataChange({ gradient: theme.gradient })}
+                          className={`w-full h-12 rounded-lg border-2 transition-all ${
+                              JSON.stringify(cardData.gradient) === JSON.stringify(theme.gradient) ? 'border-indigo-500 ring-2 ring-indigo-500' : 'border-transparent hover:border-neutral-400'
+                          }`}
+                          style={{ background: `linear-gradient(45deg, ${theme.gradient.start}, ${theme.gradient.end})` }}
+                          aria-label={theme.name}
+                      />
+                      <span className="text-xs mt-1 text-neutral-600 dark:text-neutral-400 block truncate">{theme.name}</span>
+                  </div>
+              ))}
+            </div>
+             <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 mt-4">Cores Customizadas</label>
+            <div className="flex gap-4">
+                <Input label="Início" type="color" name="gradientStart" value={cardData.gradient.start} onChange={(e) => handleDataChange({ gradient: { ...cardData.gradient, start: e.target.value } })} className="p-1 h-10" />
+                <Input label="Fim" type="color" name="gradientEnd" value={cardData.gradient.end} onChange={(e) => handleDataChange({ gradient: { ...cardData.gradient, end: e.target.value } })} className="p-1 h-10"/>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const progress = (step / 6) * 100;
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Adicionar Novo Cartão">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="Apelido do Cartão" name="nickname" type="text" placeholder="Ex: Cartão Nubank" required />
-        <Input label="4 Últimos Dígitos" name="last4" type="text" maxLength={4} placeholder="1234" required />
-        <Select label="Bandeira" name="brand" required>
-          {Object.values(CardBrand).map(brand => (
-            <option key={brand} value={brand}>{brand}</option>
-          ))}
-        </Select>
-        <Input label="Nome no Cartão" name="holderName" type="text" placeholder="JOAO DA SILVA" required />
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Validade (MM/AA)" name="expiration" type="text" placeholder="12/28" required />
-          <Input label="Dia de Vencimento" name="dueDateDay" type="number" min="1" max="31" placeholder="10" required />
+    <Modal isOpen={isOpen} onClose={handleClose} title="Adicionar Novo Cartão" size="3xl">
+      <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+        <div className="w-full max-w-sm mx-auto">
+          <RealisticCard card={cardData as Card} />
         </div>
-        <Input label="Limite de Crédito" name="limit" type="number" step="0.01" placeholder="5000,00" required />
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit">Adicionar Cartão</Button>
+        <div className="flex flex-col">
+            <div className="mb-6">
+                <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+                    <div className="bg-indigo-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                </div>
+            </div>
+          
+            <div className="min-h-[180px]">
+                {renderStepContent()}
+            </div>
+          
+            <div className="flex justify-between items-center mt-6">
+                <Button variant="secondary" onClick={() => setStep(s => s - 1)} disabled={step === 1}>
+                    <Icon icon="chevron-left" className="h-5 w-5 mr-2" />
+                    Voltar
+                </Button>
+                {step < 6 ? (
+                    <Button onClick={() => setStep(s => s + 1)}>
+                        Avançar
+                        <Icon icon="chevron-right" className="h-5 w-5 ml-2" />
+                    </Button>
+                ) : (
+                    <Button onClick={handleSubmit} leftIcon="check">
+                        Adicionar Cartão
+                    </Button>
+                )}
+            </div>
         </div>
-      </form>
+      </div>
     </Modal>
   );
 };

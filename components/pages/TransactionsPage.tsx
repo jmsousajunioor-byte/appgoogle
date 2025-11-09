@@ -8,17 +8,33 @@ import { Icon } from '../ui/Icon';
 interface TransactionsPageProps {
     transactions: Transaction[];
     onAddTransaction: (newTx: NewTransaction) => void;
+    onUpdateTransaction: (tx: Transaction) => void;
     accounts: (BankAccount | Card)[];
 }
 
-const TransactionsPage: React.FC<TransactionsPageProps> = ({ transactions, onAddTransaction, accounts }) => {
+const TransactionsPage: React.FC<TransactionsPageProps> = ({ transactions, onAddTransaction, onUpdateTransaction, accounts }) => {
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+    const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const handleAddTransaction = (newTx: NewTransaction) => {
-        onAddTransaction(newTx);
+    const handleEditTransaction = (tx: Transaction) => {
+        setTransactionToEdit(tx);
+        setIsFormModalOpen(true);
+    };
+
+    const handleModalClose = () => {
         setIsFormModalOpen(false);
-    }
+        setTransactionToEdit(null);
+    };
+
+    const handleModalSubmit = (txData: NewTransaction | Transaction) => {
+        if ('id' in txData) {
+            onUpdateTransaction(txData as Transaction);
+        } else {
+            onAddTransaction(txData as NewTransaction);
+        }
+        handleModalClose();
+    };
     
     const filteredTransactions = useMemo(() => {
         return transactions.filter(tx => 
@@ -54,14 +70,15 @@ const TransactionsPage: React.FC<TransactionsPageProps> = ({ transactions, onAdd
                     <Button variant="secondary" leftIcon="chevron-down">Filtros</Button>
                     <Button variant="secondary" leftIcon="chevron-down">Exportar</Button>
                 </div>
-                <TransactionList transactions={filteredTransactions} accounts={accounts} />
+                <TransactionList transactions={filteredTransactions} accounts={accounts} onEdit={handleEditTransaction} />
             </div>
 
             <TransactionFormModal
                 isOpen={isFormModalOpen}
-                onClose={() => setIsFormModalOpen(false)}
-                onAddTransaction={handleAddTransaction}
+                onClose={handleModalClose}
+                onSubmit={handleModalSubmit}
                 accounts={accounts}
+                transactionToEdit={transactionToEdit}
             />
         </div>
     );

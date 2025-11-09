@@ -20,6 +20,7 @@ export const ThemeContext = React.createContext<{ theme: Theme; setTheme: (theme
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [theme, setTheme] = useState<Theme>('light');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // --- STATE MANAGEMENT ---
   const [user, setUser] = useState<User>(mockUser);
@@ -86,6 +87,35 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+    const originalTx = transactions.find(t => t.id === updatedTx.id);
+    if (!originalTx) return;
+
+    // Update transactions list
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+
+    // Update account balances, handling changes in amount, type, and source account
+    setBankAccounts(prev => prev.map(acc => {
+        let newBalance = acc.balance;
+        const isOriginalSource = acc.id === originalTx.sourceId;
+        const isNewSource = acc.id === updatedTx.sourceId;
+
+        // Revert original transaction if it was a bank account transaction
+        if (isOriginalSource && !originalTx.sourceId.startsWith('c')) {
+            if (originalTx.type === TransactionType.Income) newBalance -= originalTx.amount;
+            if (originalTx.type === TransactionType.Expense) newBalance += originalTx.amount;
+        }
+
+        // Apply updated transaction if it's a bank account transaction
+        if (isNewSource && !updatedTx.sourceId.startsWith('c')) {
+            if (updatedTx.type === TransactionType.Income) newBalance += updatedTx.amount;
+            if (updatedTx.type === TransactionType.Expense) newBalance -= updatedTx.amount;
+        }
+
+        return { ...acc, balance: newBalance };
+    }));
+  };
+
   const handleUpdateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
     setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status, paymentDate: status === InvoiceStatus.Paid ? new Date().toISOString() : undefined } : inv));
   };
@@ -110,12 +140,27 @@ const App: React.FC = () => {
         [cardId]: { alertThreshold: threshold },
     }));
   };
+  
+  const allAccounts = useMemo(() => [...bankAccounts, ...cards], [bankAccounts, cards]);
 
   // --- PAGE RENDERING ---
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <DashboardPage summary={dashboardSummary} cards={enhancedCards} transactions={transactions} onAddTransaction={handleAddTransaction} onNavigate={setCurrentPage} />;
+        return <DashboardPage 
+                  summary={dashboardSummary} 
+                  cards={enhancedCards} 
+                  transactions={transactions} 
+                  onAddTransaction={handleAddTransaction}
+                  onUpdateTransaction={handleUpdateTransaction}
+                  onNavigate={setCurrentPage}
+                  invoices={invoices}
+                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+                  cardSettings={cardSettings}
+                  onUpdateCardSettings={handleUpdateCardSettings}
+                  accounts={allAccounts}
+                  onAddCard={handleAddCard}
+                />;
       case 'credit-cards':
         return <CreditCardsPage 
                     cards={enhancedCards} 
@@ -128,7 +173,12 @@ const App: React.FC = () => {
       case 'bank-accounts':
         return <BankAccountsPage accounts={bankAccounts} onAddAccount={handleAddBankAccount} />;
       case 'transactions':
-        return <TransactionsPage transactions={transactions} onAddTransaction={handleAddTransaction} accounts={[...bankAccounts, ...cards]}/>;
+        return <TransactionsPage 
+                  transactions={transactions} 
+                  onAddTransaction={handleAddTransaction} 
+                  onUpdateTransaction={handleUpdateTransaction}
+                  accounts={allAccounts}
+                />;
       case 'reports':
         return <ReportsPage transactions={transactions} />;
       case 'budgets':
@@ -138,7 +188,20 @@ const App: React.FC = () => {
       case 'settings':
         return <SettingsPage />;
       default:
-        return <DashboardPage summary={dashboardSummary} cards={enhancedCards} transactions={transactions} onAddTransaction={handleAddTransaction} onNavigate={setCurrentPage} />;
+        return <DashboardPage 
+                  summary={dashboardSummary} 
+                  cards={enhancedCards} 
+                  transactions={transactions} 
+                  onAddTransaction={handleAddTransaction}
+                  onUpdateTransaction={handleUpdateTransaction}
+                  onNavigate={setCurrentPage}
+                  invoices={invoices}
+                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+                  cardSettings={cardSettings}
+                  onUpdateCardSettings={handleUpdateCardSettings}
+                  accounts={allAccounts}
+                  onAddCard={handleAddCard}
+                />;
     }
   };
 
@@ -147,8 +210,14 @@ const App: React.FC = () => {
   return (
     <ThemeContext.Provider value={themeValue}>
       <div className={`flex h-screen font-sans ${theme === 'dark' ? 'dark' : ''}`}>
-        <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} user={user} />
-        <MainContent>
+        <Sidebar 
+            currentPage={currentPage} 
+            setCurrentPage={setCurrentPage} 
+            user={user} 
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+        />
+        <MainContent onMenuClick={() => setIsSidebarOpen(true)}>
           {renderPage()}
         </MainContent>
       </div>

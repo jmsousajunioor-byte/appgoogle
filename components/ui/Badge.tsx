@@ -16,10 +16,18 @@ const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
     [InvoiceStatus.Closed]: 'bg-neutral-200 text-neutral-800',
   };
 
+  const statusLabels: Record<InvoiceStatus, string> = {
+    [InvoiceStatus.Paid]: 'Paga',
+    [InvoiceStatus.Pending]: 'Pendente',
+    [InvoiceStatus.Overdue]: 'Em atraso',
+    [InvoiceStatus.Open]: 'Aberta',
+    [InvoiceStatus.Closed]: 'Fechada',
+  };
+
   return (
     <span className={`px-2.5 py-1 text-xs font-bold rounded-full inline-flex items-center ${statusStyles[status]} ${className}`}>
       <span className={`h-2 w-2 mr-2 rounded-full ${statusStyles[status].replace('100', '500').replace('text-emerald-800', 'bg-emerald-500').replace('text-amber-800', 'bg-amber-500').replace('text-red-800', 'bg-red-500').replace('text-blue-800', 'bg-blue-500').replace('text-neutral-800', 'bg-neutral-500')}`}></span>
-      {status}
+      {statusLabels[status]}
     </span>
   );
 };

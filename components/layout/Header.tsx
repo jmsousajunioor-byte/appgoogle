@@ -11,7 +11,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             <button 
                 onClick={onMenuClick} 
                 className="p-2 -ml-2 rounded-full text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                aria-label="Open menu"
+                aria-label="Abrir menu"
             >
                 <Icon icon="menu" className="h-6 w-6" />
             </button>

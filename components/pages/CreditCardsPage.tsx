@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Invoice, InvoiceStatus, NewCard } from '../../types';
+import { Card, Invoice, InvoiceStatus, NewCard, InvoicePaymentRecord, Page } from '../../types';
 import CardGrid from '../cards/CardGrid';
 import CardDetailModal from '../cards/CardDetailModal';
 import Button from '../ui/Button';
@@ -19,9 +19,15 @@ interface CreditCardsPageProps {
   onUpdateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
   cardSettings: Record<string, { alertThreshold: number }>;
   onUpdateCardSettings: (cardId: string, threshold: number) => void;
+  onUpdateCard: (card: Card) => void;
+  payments: InvoicePaymentRecord[];
+  onRegisterInvoicePayment: (invoiceId: string, amount: number, dateISO?: string) => void;
+  onRefundInvoiceTransaction: (invoiceId: string, txId: string) => void;
+  onRefundInstallmentGroup: (txId: string) => void;
+  onNavigate: (page: 'invoices' | 'dashboard' | 'cards-dashboard' | 'credit-cards' | 'bank-accounts' | 'transactions' | 'reports' | 'budgets' | 'profile' | 'settings') => void;
 }
 
-const CreditCardsPage: React.FC<CreditCardsPageProps> = ({ cards, invoices, onAddCard, onUpdateInvoiceStatus, cardSettings, onUpdateCardSettings }) => {
+const CreditCardsPage: React.FC<CreditCardsPageProps> = ({ cards, invoices, onAddCard, onUpdateInvoiceStatus, cardSettings, onUpdateCardSettings, onUpdateCard, payments, onRegisterInvoicePayment, onRefundInvoiceTransaction, onRefundInstallmentGroup, onNavigate, onShowInvoicesModal }) => {
   // FIX: Use the EnhancedCard type for the selected card state.
   const [selectedCard, setSelectedCard] = useState<EnhancedCard | null>(null);
   const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
@@ -75,12 +81,15 @@ const CreditCardsPage: React.FC<CreditCardsPageProps> = ({ cards, invoices, onAd
 
   return (
     <div className="p-8 space-y-8 min-h-screen">
-      <header className="flex justify-between items-center">
+            <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-heading text-neutral-800 dark:text-neutral-100">Cartões de Crédito</h1>
           <p className="text-neutral-500 dark:text-neutral-400 mt-1">Gerencie seus cartões de crédito e faturas.</p>
         </div>
-        <Button leftIcon="plus" onClick={() => setIsAddCardModalOpen(true)}>Adicionar Cartão</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" leftIcon="calendar" onClick={onShowInvoicesModal}>Ver Faturas</Button>
+          <Button leftIcon="plus" onClick={() => setIsAddCardModalOpen(true)}>Adicionar Cartão</Button>
+        </div>
       </header>
 
       <UICard title="Tendência de Uso do Limite (Agregado)">
@@ -98,6 +107,11 @@ const CreditCardsPage: React.FC<CreditCardsPageProps> = ({ cards, invoices, onAd
           onUpdateInvoiceStatus={onUpdateInvoiceStatus}
           cardSettings={cardSettings}
           onUpdateCardSettings={onUpdateCardSettings}
+          onUpdateCard={onUpdateCard}
+          payments={payments}
+          onRegisterInvoicePayment={onRegisterInvoicePayment}
+          onRefundTransaction={onRefundInvoiceTransaction}
+          onRefundGroup={onRefundInstallmentGroup}
         />
       )}
 
@@ -111,3 +125,6 @@ const CreditCardsPage: React.FC<CreditCardsPageProps> = ({ cards, invoices, onAd
 };
 
 export default CreditCardsPage;
+
+
+

@@ -37,7 +37,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUpdateUser }) => {
 
       <Card>
         <div className="flex items-center space-x-6 pb-6 border-b border-neutral-200 dark:border-neutral-700">
-          <img src={user.avatarUrl} alt="User Avatar" className="w-24 h-24 rounded-full border-4 border-indigo-500" />
+          <img src={user.avatarUrl} alt="Avatar do Usuário" className="w-24 h-24 rounded-full border-4 border-indigo-500" />
           <div>
             <h2 className="text-3xl font-bold">{user.name}</h2>
             <p className="text-neutral-500">{user.email}</p>

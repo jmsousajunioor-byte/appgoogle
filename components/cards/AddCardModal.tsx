@@ -10,12 +10,14 @@ import { Icon } from '../ui/Icon';
 interface AddCardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddCard: (newCard: NewCard) => void;
+  onAddCard?: (newCard: NewCard) => void;
+  onUpdateCard?: (card: Card) => void;
+  initialCard?: Card | null;
 }
 
 const brandOptions: CardBrand[] = [CardBrand.Visa, CardBrand.VisaSignature, CardBrand.Mastercard, CardBrand.Elo, CardBrand.Amex, CardBrand.Hipercard];
 
-const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard }) => {
+const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard, onUpdateCard, initialCard }) => {
   const [step, setStep] = useState(1);
   const [cardData, setCardData] = useState<Omit<Card, 'id'>>({
     nickname: '',
@@ -25,8 +27,36 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
     expiration: 'MM/AA',
     limit: 0,
     dueDateDay: 1,
-    gradient: cardThemes[0].gradient,
+    closingDay: 1,
+    // Inicia em cinza, usuário escolhe a cor depois
+    gradient: { start: '#CCCCCC', end: '#666666' },
   });
+
+  const isEditMode = !!initialCard && !!onUpdateCard;
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialCard) {
+        const { id, ...rest } = initialCard;
+        setCardData(rest);
+        setStep(1);
+      } else {
+        // se não for edição, garante reset base cinza
+        setCardData({
+          nickname: '',
+          brand: CardBrand.Mastercard,
+          last4: '••••',
+          holderName: 'NOME COMPLETO',
+          expiration: 'MM/AA',
+          limit: 0,
+          dueDateDay: 1,
+          closingDay: 1,
+          gradient: { start: '#CCCCCC', end: '#666666' },
+        });
+        setStep(1);
+      }
+    }
+  }, [isOpen, initialCard]);
 
   const handleDataChange = (newData: Partial<Omit<Card, 'id'>>) => {
     setCardData(prev => ({ ...prev, ...newData }));
@@ -42,7 +72,9 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
       expiration: 'MM/AA',
       limit: 0,
       dueDateDay: 1,
-      gradient: cardThemes[0].gradient,
+      closingDay: 1,
+      // Reseta para o cinza padrão
+      gradient: { start: '#CCCCCC', end: '#666666' },
     });
   }
 
@@ -52,7 +84,11 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
   }
 
   const handleSubmit = () => {
-    onAddCard(cardData);
+    if (isEditMode && initialCard && onUpdateCard) {
+      onUpdateCard({ ...cardData, id: initialCard.id });
+    } else if (onAddCard) {
+      onAddCard(cardData);
+    }
     handleClose();
   };
 
@@ -75,18 +111,29 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
           <div>
             <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Bandeira</label>
             <div className="grid grid-cols-3 gap-2">
-              {brandOptions.map(brand => (
-                <button
-                  key={brand}
-                  type="button"
-                  onClick={() => handleDataChange({ brand })}
-                  className={`p-2 h-14 flex items-center justify-center rounded-lg border-2 transition-all ${
-                    cardData.brand === brand ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50' : 'border-neutral-300 dark:border-neutral-600 hover:border-indigo-400'
-                  }`}
-                >
-                  <img src={RealisticCard.getBrandLogo(brand)} alt={brand} className="h-8 object-contain" />
-                </button>
-              ))}
+              {brandOptions.map((brand) => {
+                const isSelected = cardData.brand === brand;
+
+                return (
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={() => handleDataChange({ brand })}
+                    className={`p-3 h-24 flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all text-center ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50'
+                        : 'border-neutral-300 dark:border-neutral-600 hover:border-indigo-400'
+                    }`}
+                  >
+                    <img src={RealisticCard.getBrandLogo(brand)} alt={brand} className="h-8 object-contain" />
+                    <span
+                      className={`text-xs font-medium ${isSelected ? 'text-indigo-700 dark:text-indigo-100' : 'text-neutral-600 dark:text-neutral-200'}`}
+                    >
+                      {brand}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
@@ -119,7 +166,10 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
               maxLength={5}
             />
             <Input label="Limite de Crédito" name="limit" type="number" step="0.01" placeholder="5000,00" onChange={(e) => handleDataChange({ limit: parseFloat(e.target.value) || 0 })}/>
-            <Input label="Dia de Vencimento" name="dueDateDay" type="number" min="1" max="31" placeholder="10" onChange={(e) => handleDataChange({ dueDateDay: parseInt(e.target.value, 10) || 1 })}/>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Dia de Fechamento" name="closingDay" type="number" min="1" max="31" placeholder="3" onChange={(e) => handleDataChange({ closingDay: parseInt(e.target.value, 10) || 1 })}/>
+              <Input label="Dia de Vencimento" name="dueDateDay" type="number" min="1" max="31" placeholder="10" onChange={(e) => handleDataChange({ dueDateDay: parseInt(e.target.value, 10) || 1 })}/>
+            </div>
           </div>
         );
       case 5:
@@ -168,7 +218,7 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
   const progress = (step / 6) * 100;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Adicionar Novo Cartão" size="3xl">
+    <Modal isOpen={isOpen} onClose={handleClose} title={isEditMode ? "Editar Cartão" : "Adicionar Novo Cartão"} size="3xl">
       <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
         <div className="w-full max-w-sm mx-auto">
           <RealisticCard card={cardData as Card} />
@@ -196,7 +246,7 @@ const AddCardModal: React.FC<AddCardModalProps> = ({ isOpen, onClose, onAddCard 
                     </Button>
                 ) : (
                     <Button onClick={handleSubmit} leftIcon="check">
-                        Adicionar Cartão
+                        {isEditMode ? 'Salvar Alterações' : 'Adicionar Cartão'}
                     </Button>
                 )}
             </div>

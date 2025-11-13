@@ -8,9 +8,17 @@ interface SidebarProps {
   user: User;
   isOpen: boolean;
   onClose: () => void;
+  overdueCount?: number;
 }
 
-const NavItem: React.FC<{ icon: React.ComponentProps<typeof Icon>['icon']; label: string; page: Page; currentPage: Page; onClick: (page: Page) => void; }> = ({ icon, label, page, currentPage, onClick }) => {
+const NavItem: React.FC<{
+  icon: React.ComponentProps<typeof Icon>['icon'];
+  label: string;
+  page: Page;
+  currentPage: Page;
+  onClick: (page: Page) => void;
+  badgeCount?: number;
+}> = ({ icon, label, page, currentPage, onClick, badgeCount }) => {
   const isActive = currentPage === page;
   return (
     <a
@@ -23,15 +31,24 @@ const NavItem: React.FC<{ icon: React.ComponentProps<typeof Icon>['icon']; label
       }`}
     >
       <Icon icon={icon} className={`h-6 w-6 transition-all duration-200 ${isActive ? 'text-white' : 'text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'}`} />
-      <span className="text-base">{label}</span>
+      <span className="text-base flex items-center gap-2">
+        {label}
+        {badgeCount > 0 && (
+          <span className={`inline-flex h-5 min-w-[20px] items-center justify-center px-2 text-[11px] font-bold rounded-full ${isActive ? 'bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
+            {badgeCount}
+          </span>
+        )}
+      </span>
     </a>
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, isOpen, onClose }) => {
-  const navItems: { icon: React.ComponentProps<typeof Icon>['icon']; label: string; page: Page }[] = [
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, isOpen, onClose, overdueCount = 0 }) => {
+  const navItems: { icon: React.ComponentProps<typeof Icon>['icon']; label: string; page: Page; badgeCount?: number }[] = [
     { icon: 'dashboard', label: 'Dashboard', page: 'dashboard' },
+    { icon: 'credit-card', label: 'Dashboard de Cartões', page: 'cards-dashboard' },
     { icon: 'credit-card', label: 'Cartões de Crédito', page: 'credit-cards' },
+    { icon: 'calendar', label: 'Faturas', page: 'invoices', badgeCount: overdueCount },
     { icon: 'bank', label: 'Contas Bancárias', page: 'bank-accounts' },
     { icon: 'transactions', label: 'Transações', page: 'transactions' },
     { icon: 'bar-chart', label: 'Relatórios', page: 'reports' },
@@ -47,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, is
 
   return (
     <>
-      <div 
+      <div
         className={`fixed inset-0 bg-black/60 z-20 transition-opacity md:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
         aria-hidden="true"
@@ -61,23 +78,23 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, is
         </div>
 
         <div className="flex items-center space-x-4 mb-10">
-          <img src={user.avatarUrl} alt="User Avatar" className="w-12 h-12 rounded-full border-2 border-indigo-500" />
+          <img src={user.avatarUrl} alt="Avatar do Usuário" className="w-12 h-12 rounded-full border-2 border-indigo-500" />
           <div>
             <p className="font-bold text-neutral-800 dark:text-neutral-100">{user.name}</p>
-            <span className="text-sm text-neutral-500 dark:text-neutral-400">{user.membership} Member</span>
+            <span className="text-sm text-neutral-500 dark:text-neutral-400">{user.membership === 'Free' ? 'Gratuito' : 'Premium'} · Membro</span>
           </div>
         </div>
 
         <nav className="flex-1 flex flex-col space-y-2">
           {navItems.map(item => (
-            <NavItem key={item.page} {...item} currentPage={currentPage} onClick={handleNavClick} />
+            <NavItem key={item.page} {...item} currentPage={currentPage} onClick={handleNavClick} badgeCount={item.badgeCount} />
           ))}
         </nav>
 
         <div className="mt-auto">
           <a href="#" className="flex items-center space-x-4 px-4 py-3 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl transition-all duration-200">
             <Icon icon="logout" className="h-6 w-6 text-neutral-400" />
-            <span className="dark:text-neutral-400">Logout</span>
+            <span className="dark:text-neutral-400">Sair</span>
           </a>
         </div>
       </aside>

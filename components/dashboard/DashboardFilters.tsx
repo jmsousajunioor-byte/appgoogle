@@ -17,16 +17,20 @@ interface DashboardFiltersProps {
     setTransactionType: (value: string) => void;
     setSelectedAccount: (value: string) => void;
   };
+  showTypeFilter?: boolean;
 }
 
-const DashboardFilters: React.FC<DashboardFiltersProps> = ({ accounts, filters, onFilterChange }) => {
+const DashboardFilters: React.FC<DashboardFiltersProps> = ({ accounts, filters, onFilterChange, showTypeFilter = true }) => {
+  const gridCols = showTypeFilter
+    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
+    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4';
   return (
     <UICard>
         <div className="flex items-center space-x-2 mb-4">
             <Icon icon="filter" className="h-5 w-5 text-neutral-500" />
             <h3 className="font-heading text-lg text-neutral-700 dark:text-neutral-200">Filtros</h3>
         </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={gridCols}>
         <Select 
             label="Período"
             value={filters.dateRange}
@@ -36,16 +40,17 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({ accounts, filters, 
           <option value="last-30-days">Últimos 30 dias</option>
           <option value="all-time">Todo o período</option>
         </Select>
-
-        <Select 
-            label="Tipo de Transação"
-            value={filters.transactionType}
-            onChange={(e) => onFilterChange.setTransactionType(e.target.value)}
-        >
-            <option value="all">Todas</option>
-            <option value={TransactionType.Income}>Receitas</option>
-            <option value={TransactionType.Expense}>Despesas</option>
-        </Select>
+        {showTypeFilter && (
+          <Select 
+              label="Tipo de Transação"
+              value={filters.transactionType}
+              onChange={(e) => onFilterChange.setTransactionType(e.target.value)}
+          >
+              <option value="all">Todas</option>
+              <option value={TransactionType.Income}>Receitas</option>
+              <option value={TransactionType.Expense}>Despesas</option>
+          </Select>
+        )}
 
         <Select
             label="Conta"

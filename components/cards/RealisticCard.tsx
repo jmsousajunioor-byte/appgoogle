@@ -1,18 +1,25 @@
 import React, { useState, useRef } from 'react';
 import { Card, CardBrand } from '../../types';
 
+import visaLogo from '../../assets/brands/visa.png';
+import visaSignatureLogo from '../../assets/brands/visa-signature.png';
+import mastercardLogo from '../../assets/brands/mastercard.png';
+import amexLogo from '../../assets/brands/amex.png';
+import eloLogo from '../../assets/brands/elo.png';
+import hipercardLogo from '../../assets/brands/hipercard.png';
+
 interface RealisticCardProps {
   card: Partial<Card>;
   onClick?: () => void;
 }
 
 const brandLogos: Record<CardBrand, string> = {
-  [CardBrand.Visa]: 'https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg',
-  [CardBrand.VisaSignature]: 'https://usa.visa.com/dam/VCOM/regional/na/us/pay-with-visa/img/visa-signature-logo.png',
-  [CardBrand.Mastercard]: 'https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg',
-  [CardBrand.Amex]: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/American_Express_logo_%282018%29.svg/1200px-American_Express_logo_%282018%29.svg.png',
-  [CardBrand.Elo]: 'https://upload.wikimedia.org/wikipedia/commons/5/54/Elo_cart%C3%A3o_logo.svg',
-  [CardBrand.Hipercard]: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Hipercard_logo.svg/1280px-Hipercard_logo.svg.png',
+  [CardBrand.Visa]: visaLogo,
+  [CardBrand.VisaSignature]: visaSignatureLogo,
+  [CardBrand.Mastercard]: mastercardLogo,
+  [CardBrand.Amex]: amexLogo,
+  [CardBrand.Elo]: eloLogo,
+  [CardBrand.Hipercard]: hipercardLogo,
 };
 
 const defaultGradient = { start: '#CCCCCC', end: '#666666' };
@@ -72,6 +79,7 @@ const RealisticCard: React.FC<RealisticCardProps> = ({ card, onClick }) => {
       last4 = '••••',
       holderName = 'NOME COMPLETO',
       expiration = 'MM/AA'
+      
   } = card;
 
   return (
@@ -89,7 +97,14 @@ const RealisticCard: React.FC<RealisticCardProps> = ({ card, onClick }) => {
       <div className="relative z-10 flex flex-col justify-between h-full" style={contentStyle}>
         <div className="flex justify-between items-start">
           <span className="font-bold">{nickname || 'Apelido do Cartão'}</span>
-          {brand && <img src={brandLogos[brand]} alt={brand} className="h-8 object-contain" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5)) brightness(1.1)' }} />}
+          {brand && (
+            <img
+              src={brandLogos[brand]}
+              alt={brand}
+              className="h-10 max-w-[100px] object-contain"
+              style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5)) brightness(1.1)' }}
+            />
+          )}
         </div>
 
         <div>
@@ -98,11 +113,11 @@ const RealisticCard: React.FC<RealisticCardProps> = ({ card, onClick }) => {
           </div>
           <div className="flex justify-between items-end text-sm">
             <div>
-              <span className="opacity-70 block text-xs">Card Holder</span>
+              <span className="opacity-70 block text-xs">Titular</span>
               <span className="font-medium tracking-wider">{holderName}</span>
             </div>
             <div>
-              <span className="opacity-70 block text-xs">Expires</span>
+              <span className="opacity-70 block text-xs">Validade</span>
               <span className="font-medium tracking-wider">{expiration}</span>
             </div>
           </div>

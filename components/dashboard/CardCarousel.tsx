@@ -145,7 +145,7 @@ const CardCarousel: React.FC<CardCarouselProps> = ({ cards, onCardClick }) => {
             onClick={handlePrev}
             disabled={currentIndex === 0}
             className="absolute top-1/2 -translate-y-1/2 left-0 z-10 w-10 h-10 flex items-center justify-center bg-white/50 dark:bg-black/30 backdrop-blur-sm rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-white/75 disabled:opacity-20 disabled:cursor-not-allowed"
-            aria-label="Previous Card"
+            aria-label="Cartão anterior"
           >
             <Icon icon="chevron-left" className="h-6 w-6 text-neutral-800 dark:text-white" />
           </button>
@@ -154,7 +154,7 @@ const CardCarousel: React.FC<CardCarouselProps> = ({ cards, onCardClick }) => {
             onClick={handleNext}
             disabled={currentIndex === maxIndex}
             className="absolute top-1/2 -translate-y-1/2 right-0 z-10 w-10 h-10 flex items-center justify-center bg-white/50 dark:bg-black/30 backdrop-blur-sm rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-white/75 disabled:opacity-20 disabled:cursor-not-allowed"
-            aria-label="Next Card"
+            aria-label="Próximo cartão"
           >
             <Icon icon="chevron-right" className="h-6 w-6 text-neutral-800 dark:text-white" />
           </button>

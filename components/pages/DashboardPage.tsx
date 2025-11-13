@@ -4,7 +4,7 @@ import CategoryChart from '../dashboard/CategoryChart';
 import RecentTransactions from '../dashboard/RecentTransactions';
 import CardCarousel from '../dashboard/CardCarousel';
 import Button from '../ui/Button';
-import { Card, NewTransaction, Page, Transaction, TransactionType, Invoice, InvoiceStatus, BankAccount, NewCard } from '../../types';
+import { Card, NewTransaction, Page, Transaction, TransactionType, Invoice, InvoiceStatus, BankAccount, NewCard, PaymentMethod, InvoicePaymentRecord } from '../../types';
 import TransactionFormModal from '../transactions/TransactionFormModal';
 import CardDetailModal from '../cards/CardDetailModal';
 import DashboardFilters from '../dashboard/DashboardFilters';
@@ -28,6 +28,12 @@ interface DashboardPageProps {
     onUpdateCardSettings: (cardId: string, threshold: number) => void;
     accounts: (BankAccount | Card)[];
     onAddCard: (newCard: NewCard) => void;
+    onUpdateCard: (card: Card) => void;
+    payments: InvoicePaymentRecord[];
+    onRegisterInvoicePayment: (invoiceId: string, amount: number, dateISO?: string) => void;
+    onRefundInvoiceTransaction: (invoiceId: string, txId: string) => void;
+    onRefundInstallmentGroup: (txId: string) => void;
+    onShowInvoicesModal: () => void;
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ 
@@ -42,7 +48,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   cardSettings,
   onUpdateCardSettings,
   accounts,
-  onAddCard
+  onAddCard,
+  onUpdateCard,
+  payments,
+  onRegisterInvoicePayment,
+  onRefundInvoiceTransaction,
+  onRefundInstallmentGroup,
+  onShowInvoicesModal
 }) => {
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
@@ -51,7 +63,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   
   // --- FILTER STATE ---
   const [dateRange, setDateRange] = useState('this-month');
-  const [transactionType, setTransactionType] = useState('all');
+  // We keep state for future use, but we will not show income-related controls now
+  const [transactionType, setTransactionType] = useState('expense');
   const [selectedAccount, setSelectedAccount] = useState('all');
 
   // --- FILTERED DATA ---
@@ -66,16 +79,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     return transactions.filter(tx => {
         const txDate = new Date(tx.date);
         const dateFilterPassed = dateRange === 'all-time' || txDate >= startDate;
-        const typeFilterPassed = transactionType === 'all' || tx.type === transactionType;
+        // Force only expenses (ignore 'income' for now)
+        const typeFilterPassed = tx.type === TransactionType.Expense;
+        // Only credit or debit expenses
+        const methodFilterPassed = tx.paymentMethod === PaymentMethod.Credit || tx.paymentMethod === PaymentMethod.Debit;
         const accountFilterPassed = selectedAccount === 'all' || tx.sourceId === selectedAccount;
-        return dateFilterPassed && typeFilterPassed && accountFilterPassed;
+        return dateFilterPassed && typeFilterPassed && methodFilterPassed && accountFilterPassed;
     });
   }, [transactions, dateRange, transactionType, selectedAccount]);
 
   const filteredSummary = useMemo(() => {
     return {
-        totalIncome: filteredTransactions.filter(t => t.type === TransactionType.Income).reduce((sum, t) => sum + t.amount, 0),
-        totalExpenses: filteredTransactions.filter(t => t.type === TransactionType.Expense).reduce((sum, t) => sum + t.amount, 0),
+        totalExpenses: filteredTransactions.reduce((sum, t) => sum + t.amount, 0),
     }
   }, [filteredTransactions]);
 
@@ -120,29 +135,24 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     <div className="p-4 sm:p-8 space-y-8 min-h-screen">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-3xl sm:text-4xl font-heading text-neutral-800 dark:text-neutral-100">Dashboard</h1>
+            <h1 className="text-3xl sm:text-4xl font-heading text-neutral-800 dark:text-neutral-100">Painel</h1>
             <p className="text-neutral-500 dark:text-neutral-400 mt-1">Bem-vindo de volta! Aqui está um resumo de suas finanças.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onShowInvoicesModal} leftIcon="calendar">Ver Faturas</Button>
         </div>
       </header>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <SummaryCard 
-          title="Saldo Total em Contas"
+          title="Valor Gasto em Contas"
           amount={summary.totalBalance}
           icon="bank"
           trend="+ R$ 1.200,00"
           trendDirection="up"
-          iconBgColor="bg-blue-100"
-          iconColor="text-blue-600"
-        />
-        <SummaryCard 
-          title="Receitas no Período"
-          amount={filteredSummary.totalIncome}
-          icon="trending-up"
-          trend="+ 5.2%"
-          trendDirection="up"
-          iconBgColor="bg-emerald-100"
-          iconColor="text-emerald-600"
+          iconBgColor="bg-sky-200/70"
+          iconColor="text-sky-700"
+          containerClassName="bg-gradient-to-br from-sky-50 via-white to-white dark:from-sky-900/20 dark:via-transparent dark:to-neutral-900"
         />
         <SummaryCard 
           title="Despesas no Período"
@@ -150,8 +160,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           icon="trending-down"
           trend="+ 12.8%"
           trendDirection="down"
-          iconBgColor="bg-amber-100"
-          iconColor="text-amber-600"
+          iconBgColor="bg-amber-200/70"
+          iconColor="text-amber-700"
+          containerClassName="bg-gradient-to-br from-amber-50 via-white to-white dark:from-amber-900/20 dark:via-transparent dark:to-neutral-900"
         />
         <SummaryCard 
           title="Faturas Abertas"
@@ -159,8 +170,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           icon="credit-card"
           trend="- R$ 350,00"
           trendDirection="down"
-          iconBgColor="bg-red-100"
-          iconColor="text-red-600"
+          iconBgColor="bg-rose-200/70"
+          iconColor="text-rose-700"
+          containerClassName="bg-gradient-to-br from-rose-50 via-white to-white dark:from-rose-900/30 dark:via-transparent dark:to-neutral-900"
         />
       </div>
 
@@ -168,6 +180,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         accounts={accounts}
         filters={{ dateRange, transactionType, selectedAccount }}
         onFilterChange={{ setDateRange, setTransactionType, setSelectedAccount }}
+        showTypeFilter={false}
       />
 
       <div>
@@ -195,8 +208,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           />
         </div>
         <div className="lg:col-span-2">
-          <CategoryChart transactions={filteredTransactions.filter(t => t.type === TransactionType.Expense)} />
-        </div>
+          <CategoryChart transactions={filteredTransactions} />
+      </div>
       </div>
       
       <TransactionFormModal 
@@ -205,6 +218,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         onSubmit={handleModalSubmit}
         accounts={accounts}
         transactionToEdit={transactionToEdit}
+        allowedTypes={[TransactionType.Expense]}
+        allowedPaymentMethods={[PaymentMethod.Credit, PaymentMethod.Debit]}
       />
 
       {selectedCard && (
@@ -216,6 +231,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           onUpdateInvoiceStatus={onUpdateInvoiceStatus}
           cardSettings={cardSettings}
           onUpdateCardSettings={onUpdateCardSettings}
+          onUpdateCard={onUpdateCard}
+          payments={payments}
+          onRegisterInvoicePayment={onRegisterInvoicePayment}
+          onRefundTransaction={(invoiceId, txId)=> onRefundInvoiceTransaction(invoiceId, txId)}
+          onRefundGroup={(txId) => onRefundInstallmentGroup(txId)}
         />
       )}
 

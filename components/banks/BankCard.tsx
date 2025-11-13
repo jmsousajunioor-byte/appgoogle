@@ -15,11 +15,11 @@ const BankCard: React.FC<BankCardProps> = ({ account }) => {
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center">
-            <img src={account.logoUrl} alt={`${account.bankName} logo`} className="h-8 w-8 object-contain" />
+            <img src={account.logoUrl} alt={`Logotipo do ${account.bankName}`} className="h-8 w-8 object-contain" />
           </div>
           <div>
             <h4 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">{account.bankName}</h4>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 capitalize">{account.accountType} Account</p>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">{account.accountType === 'checking' ? 'Conta Corrente' : account.accountType === 'savings' ? 'Conta Poupança' : 'Conta'}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm">

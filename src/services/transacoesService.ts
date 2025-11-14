@@ -12,7 +12,7 @@ export async function listarTransacoes(filters?: {
     let query = supabaseClient
       .from(TABLE)
       .select('*')
-      .order('tx_date', { ascending: false });
+      .order('date', { ascending: false });
 
     if (filters?.userId) query = query.eq('user_id', filters.userId);
     if (filters?.cardId) query = query.eq('card_id', filters.cardId);

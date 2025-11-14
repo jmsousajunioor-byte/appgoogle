@@ -31,6 +31,11 @@ import {
   buscarUsuarioPorId,
   atualizarUsuario as atualizarUsuarioService,
 } from './src/services/usuariosService';
+import {
+  mapCardFromSupabase,
+  mapTransactionFromSupabase,
+  mapUserFromSupabase,
+} from './src/services/mappers';
 
 const DEFAULT_USER_ID =
   (import.meta.env.VITE_SUPABASE_DEFAULT_USER_ID as string | undefined) ||
@@ -98,13 +103,13 @@ const App: React.FC = () => {
         ]);
         if (!active) return;
         if (remoteCards && remoteCards.length) {
-          setCards(remoteCards as CardType[]);
+          setCards(remoteCards.map(mapCardFromSupabase));
         }
         if (remoteTransactions && remoteTransactions.length) {
-          setTransactions(remoteTransactions as Transaction[]);
+          setTransactions(remoteTransactions.map(mapTransactionFromSupabase));
         }
         if (remoteUser) {
-          setUser(remoteUser);
+          setUser(mapUserFromSupabase(remoteUser));
         }
       } catch (error) {
         console.error('Erro ao carregar dados do Supabase:', error);

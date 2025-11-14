@@ -77,6 +77,7 @@ const App: React.FC = () => {
     return stored === 'dark' ? 'dark' : 'light';
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   // --- STATE MANAGEMENT ---
   const [user, setUser] = useState<User>(mockUser);
@@ -113,6 +114,10 @@ const App: React.FC = () => {
         }
       } catch (error) {
         console.error('Erro ao carregar dados do Supabase:', error);
+      } finally {
+        if (active) {
+          setIsBootstrapping(false);
+        }
       }
     };
     loadInitialData();
@@ -590,6 +595,19 @@ const App: React.FC = () => {
   };
   const handleShowInvoicesModal = () => setIsInvoicesModalOpen(true);
   const handleCloseInvoicesModal = () => setIsInvoicesModalOpen(false);
+
+  if (isBootstrapping) {
+    return (
+      <ThemeContext.Provider value={themeValue}>
+        <div className={`${theme === 'dark' ? 'dark bg-neutral-900 text-neutral-200' : 'bg-neutral-50 text-neutral-600'} min-h-screen flex items-center justify-center`}>
+          <div className="text-center space-y-4">
+            <div className="mx-auto h-12 w-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+            <p className="text-sm font-medium">Carregando seus dados...</p>
+          </div>
+        </div>
+      </ThemeContext.Provider>
+    );
+  }
 
   return (
     <ThemeContext.Provider value={themeValue}>

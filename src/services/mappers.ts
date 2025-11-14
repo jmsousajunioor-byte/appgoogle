@@ -1,4 +1,4 @@
-import { Card, Transaction, User } from '../../types';
+import { Card, Transaction, User, Invoice, InvoiceStatus } from '../../types';
 
 type SupabaseRow<T extends object> = T & Record<string, any>;
 
@@ -42,4 +42,18 @@ export const mapUserFromSupabase = (row: SupabaseRow<User>): User => ({
   email: pick(row, 'email') ?? '',
   avatarUrl: pick(row, 'avatarUrl') ?? pick(row, 'avatar_url') ?? '',
   membership: pick(row, 'membership') ?? 'Free',
+});
+
+export const mapInvoiceFromSupabase = (row: SupabaseRow<Invoice>): Invoice => ({
+  id: row.id,
+  cardId: pick(row, 'cardId') ?? pick(row, 'cardid') ?? '',
+  month: pick(row, 'month') ?? '',
+  year: Number(pick(row, 'year') ?? 0),
+  totalAmount: Number(pick(row, 'totalAmount') ?? pick(row, 'totalamount') ?? 0),
+  dueDate: pick(row, 'dueDate') ?? pick(row, 'duedate') ?? new Date().toISOString(),
+  paymentDate: pick(row, 'paymentDate') ?? pick(row, 'paymentdate') ?? undefined,
+  status: (pick(row, 'status') ?? InvoiceStatus.Pending) as InvoiceStatus,
+  transactions: (pick(row, 'transactions') as Invoice['transactions']) ?? [],
+  installments: (pick(row, 'installments') as Invoice['installments']) ?? [],
+  paidAmount: Number(pick(row, 'paidAmount') ?? pick(row, 'paidamount') ?? 0),
 });

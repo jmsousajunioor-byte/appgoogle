@@ -35,7 +35,9 @@ import {
   mapCardFromSupabase,
   mapTransactionFromSupabase,
   mapUserFromSupabase,
+  mapInvoiceFromSupabase,
 } from './src/services/mappers';
+import { listarFaturasPorCartoes } from './src/services/faturasService';
 
 const DEFAULT_USER_ID =
   (import.meta.env.VITE_SUPABASE_DEFAULT_USER_ID as string | undefined) ||
@@ -103,8 +105,21 @@ const App: React.FC = () => {
           buscarUsuarioPorId(DEFAULT_USER_ID).catch(() => null),
         ]);
         if (!active) return;
+        let mappedCards = cards;
         if (remoteCards && remoteCards.length) {
-          setCards(remoteCards.map(mapCardFromSupabase));
+          mappedCards = remoteCards.map(mapCardFromSupabase);
+          setCards(mappedCards);
+        }
+        const cardIds = mappedCards.map(card => card.id);
+        if (cardIds.length) {
+          try {
+            const remoteInvoices = await listarFaturasPorCartoes(cardIds);
+            if (active && remoteInvoices?.length) {
+              setInvoices(remoteInvoices.map(mapInvoiceFromSupabase));
+            }
+          } catch (invoiceError) {
+            console.error('Erro ao listar faturas:', invoiceError);
+          }
         }
         if (remoteTransactions && remoteTransactions.length) {
           setTransactions(remoteTransactions.map(mapTransactionFromSupabase));

@@ -36,6 +36,13 @@ const DEFAULT_USER_ID =
   (import.meta.env.VITE_SUPABASE_DEFAULT_USER_ID as string | undefined) ||
   'demo-user-id';
 
+if (import.meta.env.DEV) {
+  console.debug('Supabase env check', {
+    url: import.meta.env.VITE_SUPABASE_URL,
+    key: import.meta.env.VITE_SUPABASE_ANON_KEY ? '***' : undefined,
+  });
+}
+
 const toNewTransactionPayload = (
   tx: Transaction | NewTransaction,
 ): NewTransaction => ({

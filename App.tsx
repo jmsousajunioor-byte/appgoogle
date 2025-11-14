@@ -16,6 +16,46 @@ import { formatDate } from './utils/formatters';
 import { addCreditPurchaseToInvoices, recalculateChainForCard, registerInvoicePayment } from './utils/invoiceEngine';
 import InvoicesPage, { InvoicesModal } from './components/pages/InvoicesPage';
 import { ThemeContext } from './contexts/ThemeContext';
+import {
+  listarTransacoes,
+  criarTransacao as criarTransacaoService,
+  atualizarTransacao as atualizarTransacaoService,
+  deletarTransacao as deletarTransacaoService,
+} from './src/services/transacoesService';
+import {
+  listarCartoes,
+  criarCartao as criarCartaoService,
+  atualizarCartao as atualizarCartaoService,
+} from './src/services/cartoesService';
+import {
+  buscarUsuarioPorId,
+  atualizarUsuario as atualizarUsuarioService,
+} from './src/services/usuariosService';
+
+const DEFAULT_USER_ID =
+  (import.meta.env.VITE_SUPABASE_DEFAULT_USER_ID as string | undefined) ||
+  'demo-user-id';
+
+const toNewTransactionPayload = (
+  tx: Transaction | NewTransaction,
+): NewTransaction => ({
+  description: tx.description,
+  category: tx.category,
+  amount: tx.amount,
+  date: tx.date,
+  type: tx.type,
+  paymentMethod: tx.paymentMethod,
+  sourceId: tx.sourceId,
+  isInstallment: !!tx.isInstallment,
+  installment: tx.isInstallment && tx.installment
+    ? { current: tx.installment.current, total: tx.installment.total }
+    : undefined,
+});
+
+const stripId = <T extends { id: string }>(entity: T): Omit<T, 'id'> => {
+  const { id: _omit, ...rest } = entity;
+  return rest;
+};
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -39,6 +79,35 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [recurrences, setRecurrences] = useState<RecurringTransaction[]>([]);
   const [isInvoicesModalOpen, setIsInvoicesModalOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadInitialData = async () => {
+      try {
+        const [remoteCards, remoteTransactions, remoteUser] = await Promise.all([
+          listarCartoes(DEFAULT_USER_ID),
+          listarTransacoes({ userId: DEFAULT_USER_ID }),
+          buscarUsuarioPorId(DEFAULT_USER_ID).catch(() => null),
+        ]);
+        if (!active) return;
+        if (remoteCards && remoteCards.length) {
+          setCards(remoteCards as CardType[]);
+        }
+        if (remoteTransactions && remoteTransactions.length) {
+          setTransactions(remoteTransactions as Transaction[]);
+        }
+        if (remoteUser) {
+          setUser(remoteUser);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do Supabase:', error);
+      }
+    };
+    loadInitialData();
+    return () => {
+      active = false;
+    };
+  }, []);
 
 
   // --- DERIVED STATE & MEMOS ---
@@ -74,17 +143,54 @@ const App: React.FC = () => {
 
   // --- HANDLER FUNCTIONS ---
   const handleAddCard = (newCard: NewCard) => {
-    const card: CardType = { ...newCard, id: `c${Date.now()}`, gradient: { start: '#4B5563', end: '#1F2937' } };
-    setCards(prev => [...prev, card]);
+    (async () => {
+      try {
+        const created = await criarCartaoService({
+          ...newCard,
+          user_id: DEFAULT_USER_ID,
+        });
+        if (created) {
+          setCards(prev => [...prev, created as CardType]);
+          return;
+        }
+      } catch (error) {
+        console.error('Erro ao criar cartao no Supabase:', error);
+      }
+      const fallback: CardType = {
+        ...newCard,
+        id: `c${Date.now()}`,
+        gradient: newCard.gradient || { start: '#4B5563', end: '#1F2937' },
+      };
+      setCards(prev => [...prev, fallback]);
+    })();
   };
 
   const handleUpdateCard = (updated: CardType) => {
     setCards(prev => prev.map(c => (c.id === updated.id ? { ...updated } : c)));
+    (async () => {
+      try {
+        await atualizarCartaoService(updated.id, stripId(updated));
+      } catch (error) {
+        console.error(`Erro ao atualizar cartao ${updated.id}:`, error);
+      }
+    })();
   };
 
   const handleAddBankAccount = (newAccount: NewBankAccount) => {
     const account: BankAccount = { ...newAccount, id: `b${Date.now()}`, logoUrl: 'https://logodownload.org/wp-content/uploads/2018/05/banco-do-brasil-logo-3.png' };
     setBankAccounts(prev => [...prev, account]);
+  };
+
+  const persistTransactions = (txs: (Transaction | NewTransaction)[]) => {
+    if (!txs.length) return;
+    void Promise.all(
+      txs.map(tx =>
+        criarTransacaoService({
+          ...toNewTransactionPayload(tx),
+          user_id: DEFAULT_USER_ID,
+        }),
+      ),
+    ).catch(error => console.error('Erro ao persistir transacoes:', error));
   };
 
   const handleAddTransaction = (newTx: NewTransaction) => {
@@ -106,6 +212,7 @@ const App: React.FC = () => {
         });
         // prepend created transactions
         setTransactions(prev => [...createdTxs, ...prev]);
+        persistTransactions(createdTxs);
         // No bank account balance to update for credit purchases
         return;
       }
@@ -123,6 +230,7 @@ const App: React.FC = () => {
         }
         return acc;
     }));
+    persistTransactions([tx]);
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
@@ -152,6 +260,14 @@ const App: React.FC = () => {
 
         return { ...acc, balance: newBalance };
     }));
+
+    (async () => {
+      try {
+        await atualizarTransacaoService(updatedTx.id, stripId(updatedTx));
+      } catch (error) {
+        console.error(`Erro ao atualizar transacao ${updatedTx.id}:`, error);
+      }
+    })();
   };
 
   const handleUpdateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
@@ -160,6 +276,9 @@ const App: React.FC = () => {
   
   const handleUpdateUser = (updatedUser: User) => {
     setUser(updatedUser);
+    void atualizarUsuarioService(DEFAULT_USER_ID, updatedUser).catch(error => {
+      console.error('Erro ao atualizar usuario no Supabase:', error);
+    });
   };
   
   const handleAddBudget = (newBudget: NewBudget) => {
@@ -201,6 +320,9 @@ const App: React.FC = () => {
       return recalculateChainForCard(updated, nextInv.cardId);
     });
     setTransactions(prev => prev.filter(t => t.id !== txId));
+    void deletarTransacaoService(txId).catch(error => {
+      console.error(`Erro ao deletar transacao ${txId} durante estorno:`, error);
+    });
   };
 
   const handleRefundInstallmentGroup = (txId: string) => {
@@ -230,6 +352,11 @@ const App: React.FC = () => {
       transactions: inv.transactions.filter(t => !idsToRemove.has(t.id))
     })), foundInvoice!.cardId));
     setTransactions(prev => prev.filter(t => !idsToRemove.has(t.id)));
+    idsToRemove.forEach(txId => {
+      void deletarTransacaoService(txId).catch(error => {
+        console.error(`Erro ao deletar transacao ${txId} durante estorno em grupo:`, error);
+      });
+    });
   };
   
   const allAccounts = useMemo(() => [...bankAccounts, ...cards], [bankAccounts, cards]);

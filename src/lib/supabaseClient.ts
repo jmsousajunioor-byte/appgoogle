@@ -8,6 +8,11 @@ const supabaseAnonKey =
   (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : undefined);
 
 if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Supabase env snapshot', {
+    MODE: import.meta.env.MODE,
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    hasAnonKey: Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY),
+  });
   throw new Error(
     'Supabase credentials are missing. Declare VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your env file.',
   );

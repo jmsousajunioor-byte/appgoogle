@@ -114,7 +114,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     setStatementInvoice(null);
   };
 
-  const installments = currentInvoice?.installments ?? [];
+  const installments =
+    selectedInvoice?.installments ??
+    currentInvoice?.installments ??
+    [];
 
   return (
     <div className="space-y-6">

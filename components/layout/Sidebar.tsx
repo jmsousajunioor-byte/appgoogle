@@ -9,6 +9,7 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   overdueCount?: number;
+  onLogout: () => void;
 }
 
 const NavItem: React.FC<{
@@ -43,7 +44,7 @@ const NavItem: React.FC<{
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, isOpen, onClose, overdueCount = 0 }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, isOpen, onClose, overdueCount = 0, onLogout }) => {
   const navItems: { icon: React.ComponentProps<typeof Icon>['icon']; label: string; page: Page; badgeCount?: number }[] = [
     { icon: 'dashboard', label: 'Dashboard', page: 'dashboard' },
     { icon: 'credit-card', label: 'Dashboard de Cartões', page: 'cards-dashboard' },
@@ -92,10 +93,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, is
         </nav>
 
         <div className="mt-auto">
-          <a href="#" className="flex items-center space-x-4 px-4 py-3 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl transition-all duration-200">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex w-full items-center space-x-4 rounded-xl px-4 py-3 text-left text-neutral-500 transition-all duration-200 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
+          >
             <Icon icon="logout" className="h-6 w-6 text-neutral-400" />
-            <span className="dark:text-neutral-400">Sair</span>
-          </a>
+            <span>Sair</span>
+          </button>
         </div>
       </aside>
     </>

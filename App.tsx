@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import MainContent from './components/layout/MainContent';
 import { Page, Card as CardType, Invoice, BankAccount, Transaction, User, Budget, Goal, NewCard, NewBankAccount, NewTransaction, InvoiceStatus, TransactionType, Theme, NewBudget, NewGoal, InvoicePaymentRecord, NotificationItem, RecurringTransaction } from './types';
@@ -11,6 +12,12 @@ import BudgetsPage from './components/pages/BudgetsPage';
 import ProfilePage from './components/pages/ProfilePage';
 import CardsDashboardPage from './components/pages/CardsDashboardPage';
 import SettingsPage from './components/pages/SettingsPage';
+import LoginPage from '@/pages/Login';
+import RegisterPage from '@/pages/Register';
+import ForgotPasswordPage from '@/pages/ForgotPassword';
+import ResetPasswordPage from '@/pages/ResetPassword';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/components/ui/toast';
 import { mockCards, mockInvoices, mockBankAccounts, mockTransactions, mockUser, mockBudgets, mockGoals } from './utils/mockData';
 import { formatDate } from './utils/formatters';
 import { addCreditPurchaseToInvoices, recalculateChainForCard, registerInvoicePayment } from './utils/invoiceEngine';
@@ -71,7 +78,7 @@ const stripId = <T extends { id: string }>(entity: T): Omit<T, 'id'> => {
   return rest;
 };
 
-const App: React.FC = () => {
+const AppContainer: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'light';
@@ -80,6 +87,9 @@ const App: React.FC = () => {
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const { isAuthenticated, loading: authLoading, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // --- STATE MANAGEMENT ---
   const [user, setUser] = useState<User>(mockUser);
@@ -95,7 +105,19 @@ const App: React.FC = () => {
   const [recurrences, setRecurrences] = useState<RecurringTransaction[]>([]);
   const [isInvoicesModalOpen, setIsInvoicesModalOpen] = useState(false);
 
+  const authRoutes = ['/login', '/register', '/forgot-password', '/reset-password'];
+
   useEffect(() => {
+    if (isAuthenticated && authRoutes.includes(location.pathname)) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsBootstrapping(false);
+      return;
+    }
     let active = true;
     const loadInitialData = async () => {
       try {
@@ -135,11 +157,12 @@ const App: React.FC = () => {
         }
       }
     };
+    setIsBootstrapping(true);
     loadInitialData();
     return () => {
       active = false;
     };
-  }, []);
+  }, [isAuthenticated]);
 
 
   // --- DERIVED STATE & MEMOS ---
@@ -608,24 +631,45 @@ const App: React.FC = () => {
   const handleClearNotifications = () => {
     setNotifications([]);
   };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      setIsSidebarOpen(false);
+      setCurrentPage('dashboard');
+      setIsBootstrapping(false);
+      navigate('/login', { replace: true });
+    }
+  };
   const handleShowInvoicesModal = () => setIsInvoicesModalOpen(true);
   const handleCloseInvoicesModal = () => setIsInvoicesModalOpen(false);
+  const renderLoadingState = (message: string) => (
+    <div className={`${theme === 'dark' ? 'dark bg-neutral-900 text-neutral-200' : 'bg-neutral-50 text-neutral-600'} min-h-screen flex items-center justify-center`}>
+      <div className="text-center space-y-4">
+        <div className="mx-auto h-12 w-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+        <p className="text-sm font-medium">{message}</p>
+      </div>
+    </div>
+  );
 
-  if (isBootstrapping) {
-    return (
-      <ThemeContext.Provider value={themeValue}>
-        <div className={`${theme === 'dark' ? 'dark bg-neutral-900 text-neutral-200' : 'bg-neutral-50 text-neutral-600'} min-h-screen flex items-center justify-center`}>
-          <div className="text-center space-y-4">
-            <div className="mx-auto h-12 w-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
-            <p className="text-sm font-medium">Carregando seus dados...</p>
-          </div>
-        </div>
-      </ThemeContext.Provider>
+  let content: React.ReactNode;
+  if (authLoading) {
+    content = renderLoadingState('Verificando sua sessão...');
+  } else if (!isAuthenticated) {
+    content = (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     );
-  }
-
-  return (
-    <ThemeContext.Provider value={themeValue}>
+  } else if (isBootstrapping) {
+    content = renderLoadingState('Carregando seus dados...');
+  } else {
+    content = (
       <div className={`flex h-screen font-sans ${theme === 'dark' ? 'dark' : ''}`}>
         <Sidebar 
             currentPage={currentPage} 
@@ -634,6 +678,7 @@ const App: React.FC = () => {
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
             overdueCount={invoices.filter(inv => inv.status === InvoiceStatus.Overdue).length}
+            onLogout={() => { void handleLogout(); }}
         />
         <MainContent onMenuClick={() => setIsSidebarOpen(true)}>
           {renderPage()}
@@ -650,8 +695,22 @@ const App: React.FC = () => {
           onRefundGroup={handleRefundInstallmentGroup}
         />
       </div>
+    );
+  }
+
+  return (
+    <ThemeContext.Provider value={themeValue}>
+      {content}
     </ThemeContext.Provider>
   );
 };
+
+const App: React.FC = () => (
+  <ToastProvider>
+    <AuthProvider>
+      <AppContainer />
+    </AuthProvider>
+  </ToastProvider>
+);
 
 export default App;

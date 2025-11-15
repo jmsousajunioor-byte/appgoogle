@@ -9,6 +9,29 @@ import type {
 import { supabaseClient } from '@/lib/supabaseClient';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
+const getConfiguredRedirectBase = () => {
+  const fromEnv =
+    import.meta.env.VITE_SUPABASE_REDIRECT_URL ||
+    import.meta.env.VITE_APP_URL ||
+    import.meta.env.VITE_SITE_URL;
+
+  if (fromEnv) {
+    return fromEnv.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return undefined;
+};
+
+const buildRedirectUrl = (path: string) => {
+  const base = getConfiguredRedirectBase();
+  if (!base) return undefined;
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
 const mapSupabaseUser = (supabaseUser: SupabaseUser | null): User | undefined => {
   if (!supabaseUser || !supabaseUser.email) return undefined;
 
@@ -56,68 +79,93 @@ const buildAuthResponse = (options: {
   };
 };
 
+const handleSupabaseException = (error: unknown, fallbackMessage: string): AuthResponse => {
+  const message =
+    error instanceof Error && error.message ? error.message : fallbackMessage;
+  console.error('[Supabase Auth error]', error);
+  return {
+    success: false,
+    message,
+  };
+};
+
 export const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {
-  const { email, password } = credentials;
+  try {
+    const { email, password } = credentials;
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email,
-    password,
-  });
+    if (error || !data.user) {
+      return {
+        success: false,
+        message: error?.message ?? 'Erro ao fazer login',
+      };
+    }
 
-  if (error || !data.user) {
-    return {
-      success: false,
-      message: error?.message ?? 'Erro ao fazer login',
-    };
+    return buildAuthResponse({
+      user: data.user,
+      session: data.session,
+      message: 'Login realizado com sucesso',
+      success: true,
+    });
+  } catch (error) {
+    return handleSupabaseException(error, 'Erro ao fazer login');
   }
-
-  return buildAuthResponse({
-    user: data.user,
-    session: data.session,
-    message: 'Login realizado com sucesso',
-    success: true,
-  });
 };
 
 export const register = async (payload: RegisterData): Promise<AuthResponse> => {
-  const { email, password, fullName, cpf, phone, birthDate, termsAccepted, privacyAccepted, marketingConsent } =
-    payload;
+  try {
+    const {
+      email,
+      password,
+      fullName,
+      cpf,
+      phone,
+      birthDate,
+      termsAccepted,
+      privacyAccepted,
+      marketingConsent,
+    } = payload;
 
-  const redirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+    const redirectTo = buildRedirectUrl('/reset-password');
 
-  const { data, error } = await supabaseClient.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: redirectTo,
-      data: {
-        fullName,
-        cpf,
-        phone,
-        birthDate,
-        termsAccepted,
-        termsAcceptedAt: new Date().toISOString(),
-        privacyAccepted,
-        privacyAcceptedAt: new Date().toISOString(),
-        marketingConsent: Boolean(marketingConsent),
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectTo,
+        data: {
+          fullName,
+          cpf,
+          phone,
+          birthDate,
+          termsAccepted,
+          termsAcceptedAt: new Date().toISOString(),
+          privacyAccepted,
+          privacyAcceptedAt: new Date().toISOString(),
+          marketingConsent: Boolean(marketingConsent),
+        },
       },
-    },
-  });
+    });
 
-  if (error || !data.user) {
-    return {
-      success: false,
-      message: error?.message ?? 'Erro ao criar conta',
-    };
+    if (error || !data.user) {
+      return {
+        success: false,
+        message: error?.message ?? 'Erro ao criar conta',
+      };
+    }
+
+    return buildAuthResponse({
+      user: data.user,
+      session: data.session,
+      message: 'Cadastro realizado com sucesso',
+      success: true,
+    });
+  } catch (error) {
+    return handleSupabaseException(error, 'Erro ao criar conta');
   }
-
-  return buildAuthResponse({
-    user: data.user,
-    session: data.session,
-    message: 'Cadastro realizado com sucesso',
-    success: true,
-  });
 };
 
 export const logout = async (): Promise<void> => {
@@ -125,106 +173,123 @@ export const logout = async (): Promise<void> => {
 };
 
 export const verifyToken = async (): Promise<AuthResponse> => {
-  const { data, error } = await supabaseClient.auth.getUser();
+  try {
+    const { data, error } = await supabaseClient.auth.getUser();
 
-  if (error || !data.user) {
-    return {
-      success: false,
-      message: error?.message ?? 'Sessao nao encontrada',
-    };
+    if (error || !data.user) {
+      return {
+        success: false,
+        message: error?.message ?? 'Sessão não encontrada',
+      };
+    }
+
+    return buildAuthResponse({
+      user: data.user,
+      session: null,
+      message: 'Sessão válida',
+      success: true,
+    });
+  } catch (error) {
+    return handleSupabaseException(error, 'Erro ao verificar sessão');
   }
-
-  return buildAuthResponse({
-    user: data.user,
-    session: null,
-    message: 'Sessao valida',
-    success: true,
-  });
 };
 
 export const forgotPassword = async (payload: ForgotPasswordData): Promise<AuthResponse> => {
-  const redirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+  try {
+    const redirectTo = buildRedirectUrl('/reset-password');
 
-  const { error } = await supabaseClient.auth.resetPasswordForEmail(payload.email, {
-    redirectTo,
-  });
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(payload.email, {
+      redirectTo,
+    });
 
-  if (error) {
+    if (error) {
+      return {
+        success: false,
+        message: error.message ?? 'Erro ao solicitar redefinição de senha',
+      };
+    }
+
     return {
-      success: false,
-      message: error.message ?? 'Erro ao solicitar redefinicao de senha',
+      success: true,
+      message: 'Email de redefinição de senha enviado',
     };
+  } catch (error) {
+    return handleSupabaseException(error, 'Erro ao solicitar redefinição de senha');
   }
-
-  return {
-    success: true,
-    message: 'Email de redefinicao de senha enviado',
-  };
 };
 
 export const resetPassword = async (payload: ResetPasswordData): Promise<AuthResponse> => {
-  const { password } = payload;
+  try {
+    const { password } = payload;
 
-  const { data, error } = await supabaseClient.auth.updateUser({
-    password,
-  });
+    const { data, error } = await supabaseClient.auth.updateUser({
+      password,
+    });
 
-  if (error || !data.user) {
-    return {
-      success: false,
-      message: error?.message ?? 'Erro ao redefinir senha',
-    };
+    if (error || !data.user) {
+      return {
+        success: false,
+        message: error?.message ?? 'Erro ao redefinir senha',
+      };
+    }
+
+    return buildAuthResponse({
+      user: data.user,
+      session: null,
+      message: 'Senha redefinida com sucesso',
+      success: true,
+    });
+  } catch (error) {
+    return handleSupabaseException(error, 'Erro ao redefinir senha');
   }
-
-  return buildAuthResponse({
-    user: data.user,
-    session: null,
-    message: 'Senha redefinida com sucesso',
-    success: true,
-  });
 };
 
 export const verifyEmail = async (_token: string): Promise<AuthResponse> => {
-  const { data, error } = await supabaseClient.auth.getUser();
+  try {
+    const { data, error } = await supabaseClient.auth.getUser();
 
-  if (error || !data.user) {
-    return {
-      success: false,
-      message: error?.message ?? 'Nao foi possivel verificar o email',
-    };
+    if (error || !data.user) {
+      return {
+        success: false,
+        message: error?.message ?? 'Não foi possível verificar o email',
+      };
+    }
+
+    return buildAuthResponse({
+      user: data.user,
+      session: null,
+      message: 'Email verificado ou pendente de verificação pelo Supabase',
+      success: true,
+    });
+  } catch (error) {
+    return handleSupabaseException(error, 'Não foi possível verificar o email');
   }
-
-  return buildAuthResponse({
-    user: data.user,
-    session: null,
-    message: 'Email verificado ou pendente de verificacao pelo Supabase',
-    success: true,
-  });
 };
 
 export const resendVerificationEmail = async (email: string): Promise<AuthResponse> => {
-  const redirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/` : undefined;
+  try {
+    const redirectTo = buildRedirectUrl('/');
 
-  const { data, error } = await supabaseClient.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: redirectTo,
-    },
-  });
+    const { data, error } = await supabaseClient.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: redirectTo,
+      },
+    });
 
-  if (error) {
+    if (error) {
+      return {
+        success: false,
+        message: error.message ?? 'Não foi possível reenviar o email de verificação',
+      };
+    }
+
     return {
-      success: false,
-      message: error.message ?? 'Nao foi possivel reenviar o email de verificacao',
+      success: true,
+      message: 'Email de verificação reenviado (via magic link do Supabase)',
+      user: data.user ? mapSupabaseUser(data.user) : undefined,
     };
+  } catch (error) {
+    return handleSupabaseException(error, 'Não foi possível reenviar o email de verificação');
   }
-
-  return {
-    success: true,
-    message: 'Email de verificacao reenviado (via magic link do Supabase)',
-    user: data.user ? mapSupabaseUser(data.user) : undefined,
-  };
 };
-

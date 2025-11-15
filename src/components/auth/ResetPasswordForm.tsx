@@ -28,11 +28,11 @@ export const ResetPasswordForm: React.FC = () => {
   const [tokenValid, setTokenValid] = useState(true);
 
   useEffect(() => {
-    const token = searchParams.get('token');
+    const token = searchParams.get('token') ?? searchParams.get('access_token');
     if (!token) {
       setTokenValid(false);
       toast({
-        title: '❌ Token inválido',
+        title: 'Token inválido',
         description: 'O link de redefinição é inválido ou expirou.',
         variant: 'destructive',
       });
@@ -83,7 +83,7 @@ export const ResetPasswordForm: React.FC = () => {
         }, 3000);
       } else {
         toast({
-          title: '❌ Erro',
+        title: 'Token inválido',
           description: response.message,
           variant: 'destructive',
         });
@@ -97,7 +97,7 @@ export const ResetPasswordForm: React.FC = () => {
         setErrors(newErrors);
       } else {
         toast({
-          title: '❌ Erro',
+        title: 'Token inválido',
           description: 'Ocorreu um erro ao redefinir sua senha.',
           variant: 'destructive',
         });
@@ -138,7 +138,7 @@ export const ResetPasswordForm: React.FC = () => {
             </div>
             <CardTitle className="text-2xl font-bold text-red-400">Token inválido</CardTitle>
             <CardDescription className="text-gray-300">
-              O link de redefinição é inválido ou expirou.
+        description: 'O link de redefinição é inválido ou expirou.',
             </CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col space-y-3">

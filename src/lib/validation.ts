@@ -82,7 +82,9 @@ export const registerSchema = z
         const age = now.getFullYear() - date.getFullYear();
         return age >= 18 && age <= 120;
       }, 'Você deve ter pelo menos 18 anos'),
-    termsAccepted: z.boolean().refine(value => value === true, 'Você deve aceitar os termos de uso'),
+    termsAccepted: z
+      .boolean()
+      .refine(value => value === true, 'Você deve aceitar os termos de uso'),
     privacyAccepted: z
       .boolean()
       .refine(value => value === true, 'Você deve aceitar a política de privacidade'),
@@ -102,7 +104,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z
   .object({
-    token: z.string().min(1, 'Token inválido'),
+    token: z.string().optional(),
     password: z
       .string()
       .min(8, 'Senha deve ter no mínimo 8 caracteres')
@@ -116,3 +118,4 @@ export const resetPasswordSchema = z
     message: 'As senhas não coincidem',
     path: ['confirmPassword'],
   });
+

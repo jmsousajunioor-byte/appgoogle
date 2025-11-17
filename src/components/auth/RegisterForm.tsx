@@ -459,4 +459,50 @@ export const RegisterForm: React.FC = () => {
   );
 };
 
+const handleSubmit = async (event: React.FormEvent) => {
+  event.preventDefault();
+  setErrors({});
+  setLoading(true);
+
+  try {
+    const validated = registerSchema.parse(formData);
+    const response = await register(validated);
+
+    console.log('RESPOSTA DO REGISTER:', response); // <-- adiciona isso aqui
+
+    if (response.success) {
+      toast({
+        title: 'Cadastro realizado com sucesso!',
+        description: 'Enviamos um email de verificacao. Confirme o seu email para prosseguir.',
+        variant: 'default',
+      });
+      navigate('/verify-email');
+    } else {
+      toast({
+        title: 'Erro ao criar conta',
+        description: response.message,
+        variant: 'destructive',
+      });
+    }
+  } catch (error: any) {
+    console.error('ERRO NO HANDLE SUBMIT:', error); // <-- pode adicionar isso também
+    if (error?.errors) {
+      const newErrors: Record<string, string> = {};
+      error.errors.forEach((issue: any) => {
+        newErrors[issue.path[0]] = issue.message;
+      });
+      setErrors(newErrors);
+    } else {
+      toast({
+        title: 'Erro',
+        description: 'Ocorreu um erro ao criar sua conta. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 export default RegisterForm;

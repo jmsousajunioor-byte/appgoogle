@@ -3,7 +3,6 @@ import RegisterForm from '@/components/auth/RegisterForm';
 
 const RegisterPage: React.FC = () => <RegisterForm />;
 
-const redirectTo = buildRedirectUrl('/reset-password');
 
 
 

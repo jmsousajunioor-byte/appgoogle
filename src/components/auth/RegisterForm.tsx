@@ -26,11 +26,12 @@ export const RegisterForm: React.FC = () => {
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
     fullName: '',
-    cpf: '',
+    // cpf: '', // Removido conforme solicitado
     phone: '',
     birthDate: '',
     termsAccepted: false,
@@ -45,50 +46,41 @@ export const RegisterForm: React.FC = () => {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [submitted, setSubmitted] = useState(false);
 
-  const passwordChecks = React.useMemo(() => {
-    const pwd = formData.password || '';
-
-    return {
-      length: pwd.length >= 8,
-      upper: /[A-Z]/.test(pwd),
-      number: /[0-9]/.test(pwd),
-      special: /[^A-Za-z0-9]/.test(pwd),
+  const validatePassword = (password: string) => {
+    const rules = {
+      length: password.length >= 8,
+      upper: /[A-Z]/.test(password),
+      lower: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[^A-Za-z0-9]/.test(password),
     };
+    const isValid = Object.values(rules).every(Boolean);
+    return { isValid, rules };
+  };
+
+  const passwordChecks = React.useMemo(() => {
+    return validatePassword(formData.password).rules;
   }, [formData.password]);
+
+  const validateConfirmPassword = (password: string, confirm: string) => {
+    if (!confirm) return true; // Don't show error if empty, Zod will handle it on submit
+    return password === confirm;
+  };
 
   const passwordMeetsAllChecks = React.useMemo(
     () => Object.values(passwordChecks).every(Boolean),
     [passwordChecks]
   );
 
-  const isRequiredInvalid = (name: keyof typeof formData) => {
-    const value = formData[name];
-    const isEmptyString = typeof value === 'string' && value.trim() === '';
-    const isFalsy = typeof value !== 'string' && !value;
-
-    return Boolean(errors[name]) || (submitted && (isEmptyString || isFalsy));
-  };
-
-  const getRequiredMessage = (name: keyof typeof formData, label?: string) => {
-    const existing = errors[name];
-    if (existing) return existing;
-
-    const value = formData[name];
-    const isEmptyString = typeof value === 'string' && value.trim() === '';
-    const isFalsy = typeof value !== 'string' && !value;
-
-    if (submitted && label && (isEmptyString || isFalsy)) {
-      return `${label} é obrigatório.`;
-    }
-
-    return '';
-  };
+  const isInvalid = (name: keyof typeof formData) => !!errors[name];
 
   const shouldHighlightPassword =
-    isRequiredInvalid('password') ||
+    isInvalid('password') ||
     (!passwordMeetsAllChecks && (submitted || formData.password.length > 0));
 
-  const shouldHighlightConfirm = isRequiredInvalid('confirmPassword');
+  const shouldHighlightConfirm =
+    isInvalid('confirmPassword') ||
+    !validateConfirmPassword(formData.password, formData.confirmPassword);
 
   const calculatePasswordStrength = (password: string): number => {
     let strength = 0;
@@ -99,14 +91,6 @@ export const RegisterForm: React.FC = () => {
     if (/[^A-Za-z0-9]/.test(password)) strength += 12.5;
     return strength;
   };
-
-  const formatCPF = (value: string) =>
-    value
-      .replace(/\D/g, '')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
-      .replace(/(-\d{2})\d+?$/, '$1');
 
   const formatPhone = (value: string) =>
     value
@@ -119,7 +103,6 @@ export const RegisterForm: React.FC = () => {
     const { name, value, type, checked } = event.target;
     let newValue = value;
 
-    if (name === 'cpf') newValue = formatCPF(value);
     if (name === 'phone') newValue = formatPhone(value);
 
     setFormData(prev => ({
@@ -133,6 +116,24 @@ export const RegisterForm: React.FC = () => {
 
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    const { name } = event.target;
+    const fieldName = name as keyof typeof formData;
+
+    try {
+      // Valida o campo específico usando uma porção do schema do Zod
+      registerSchema.pick({ [fieldName]: true }).parse({ [fieldName]: formData[fieldName] });
+      // Se a validação passar, limpa o erro para esse campo
+      if (errors[fieldName]) {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    } catch (error: any) {
+      if (error.issues && error.issues.length > 0) {
+        setErrors(prev => ({ ...prev, [fieldName]: error.issues[0].message }));
+      }
     }
   };
 
@@ -174,28 +175,28 @@ export const RegisterForm: React.FC = () => {
         });
       }
     } catch (error: any) {
-      if (error?.errors) {
+      if (error.issues) { // Zod errors são expostos em 'issues'
         const newErrors: Record<string, string> = {};
 
-        error.errors.forEach((issue: any) => {
+        error.issues.forEach((issue: any) => {
           const field = issue.path[0] as string;
 
-          // Se ja existe erro para esse campo, concatena as mensagens
-          if (newErrors[field]) {
-            newErrors[field] = `${newErrors[field]} | ${issue.message}`;
-          } else {
+          // Pega apenas a primeira mensagem de erro para cada campo, evitando sobrecarga.
+          if (!newErrors[field]) {
             newErrors[field] = issue.message;
           }
         });
 
-      setErrors(newErrors);
-    } else {
-      toast({
-        title: 'Erro',
-        description: error?.message || 'Ocorreu um erro ao criar sua conta. Tente novamente.',
-        variant: 'destructive',
-      });
-    }
+        setErrors(newErrors);
+        toast({
+          title: 'Verifique os dados',
+          description: 'Por favor, corrija os erros indicados no formulário.',
+          variant: 'destructive',
+        });
+      } else {
+        // Fallback para erros inesperados que não são do Zod
+        toast({ title: 'Erro Inesperado', description: 'Ocorreu um erro. Tente novamente.', variant: 'destructive' });
+      }
     } finally {
       console.log('--- SUBMIT REGISTRO FINALIZADO ---');
       setLoading(false);
@@ -246,7 +247,29 @@ export const RegisterForm: React.FC = () => {
           <div className="glass rounded-[32px] border border-border/35 bg-card/40 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_60px_hsl(var(--cosmic-purple)/0.2)]">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
+                  <label htmlFor="username" className="text-sm font-medium text-foreground">
+                    Usuário *
+                  </label>
+                  <div className="relative group">
+                    <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-blue" />
+                    <Input
+                      id="username"
+                      name="username"
+                      type="text"
+                      placeholder="Seu nome de usuário"
+                      value={formData.username}
+                      onChange={handleChange}
+                      className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
+                        isInvalid('username') ? 'border-destructive animate-shake' : ''
+                      }`}
+                      disabled={loading}
+                      onBlur={handleBlur}
+                    />
+                  </div>
+                  {errors.username && <p className="text-sm text-destructive">{errors.username}</p>}
+                </div>
+                <div className="space-y-2">
                   <label htmlFor="fullName" className="text-sm font-medium text-foreground">
                     Nome completo *
                   </label>
@@ -260,17 +283,16 @@ export const RegisterForm: React.FC = () => {
                       value={formData.fullName}
                       onChange={handleChange}
                       className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
-                        isRequiredInvalid('fullName') ? 'border-destructive animate-shake' : ''
+                        isInvalid('fullName') ? 'border-destructive animate-shake' : ''
                       }`}
                       disabled={loading}
+                      onBlur={handleBlur}
                     />
                   </div>
-                  {getRequiredMessage('fullName', 'Nome completo') && (
-                    <p className="text-sm text-destructive">{getRequiredMessage('fullName', 'Nome completo')}</p>
-                  )}
+                  {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
                 </div>
 
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-foreground">
                     Email *
                   </label>
@@ -284,52 +306,31 @@ export const RegisterForm: React.FC = () => {
                       value={formData.email}
                       onChange={handleChange}
                       className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
-                        isRequiredInvalid('email') ? 'border-destructive animate-shake' : ''
+                        isInvalid('email') ? 'border-destructive animate-shake' : ''
                       }`}
                       disabled={loading}
                       autoComplete="email"
+                      onBlur={handleBlur}
                     />
                   </div>
-                  {getRequiredMessage('email', 'Email') && (
-                    <p className="text-sm text-destructive">{getRequiredMessage('email', 'Email')}</p>
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
                   )}
                 </div>
 
-                  <div className="space-y-2">
-                  <label htmlFor="cpf" className="text-sm font-medium text-foreground">
-                    CPF (opcional)
-                  </label>
-                  <div className="relative group">
-                    <FileText className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-blue" />
-                    <Input
-                      id="cpf"
-                      name="cpf"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="000.000.000-00"
-                      value={formData.cpf}
-                      onChange={handleChange}
-                      className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
-                        errors.cpf ? 'border-destructive animate-shake' : ''
-                      }`}
-                      disabled={loading}
-                    />
-                  </div>
-                  {errors.cpf && <p className="text-sm text-destructive">{errors.cpf}</p>}
-                </div>
-
-              </div>
-
-              <div className="space-y-2">
+                <div className="space-y-2">
                   <label htmlFor="phone" className="text-sm font-medium text-foreground">
                     Telefone (opcional)
                   </label>
                   <div className="relative group">
-                    <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-blue" />
+                    <Phone
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-blue"
+                    />
                     <Input
                       id="phone"
                       name="phone"
                       type="tel"
+                      inputMode="tel"
                       placeholder="(00) 00000-0000"
                       value={formData.phone}
                       onChange={handleChange}
@@ -338,12 +339,13 @@ export const RegisterForm: React.FC = () => {
                       }`}
                       disabled={loading}
                       autoComplete="tel"
+                      onBlur={handleBlur}
                     />
                   </div>
                   {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 items-start">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 items-start pt-4 border-t border-border/20">
                   <div className="space-y-2">
                     <label htmlFor="password" className="text-sm font-medium text-foreground">
                       Senha *
@@ -358,6 +360,7 @@ export const RegisterForm: React.FC = () => {
                         value={formData.password}
                         onChange={handleChange}
                         className={`pl-11 pr-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-pink/60 focus-visible:ring-cosmic-pink/30 ${
+                          // A lógica de highlight aqui é mais complexa, então mantemos
                           shouldHighlightPassword ? 'border-destructive' : ''
                         }`}
                         disabled={loading}
@@ -373,45 +376,77 @@ export const RegisterForm: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Erro do Zod embaixo do campo */}
-                    {getRequiredMessage('password', 'Senha') && (
-                      <p className="text-sm text-destructive mt-1">{getRequiredMessage('password', 'Senha')}</p>
+                    {/* Mensagem de erro para a senha */}
+                    {errors.password && (
+                      <p className="text-sm text-destructive mt-1">{errors.password}</p>
+                    )}
+                    {!passwordMeetsAllChecks && formData.password.length > 0 && !errors.password && (
+                      <p className="text-sm text-destructive mt-1">A senha deve atender a todos os critérios.</p>
                     )}
 
                     {/* Checklist em tempo real */}
                     <div className="mt-2 text-xs text-muted-foreground space-y-1">
                       <p className="font-medium text-foreground/80">Sua senha deve conter:</p>
-                      <div className="grid grid-cols-2 gap-1">
-                        <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-destructive'}`}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                        <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : formData.password.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                           <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                            passwordChecks.length ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                            passwordChecks.length
+                              ? 'border-emerald-400 bg-emerald-500/10'
+                              : formData.password.length > 0
+                              ? 'border-destructive/60 bg-destructive/10'
+                              : 'border-border/50'
                           }`}>
                             {passwordChecks.length ? '✓' : '•'}
                           </span>
                           <span>Min. 8 caracteres</span>
                         </div>
 
-                        <div className={`flex items-center gap-1 ${passwordChecks.upper ? 'text-emerald-400' : 'text-destructive'}`}>
+                        <div className={`flex items-center gap-1 ${passwordChecks.upper ? 'text-emerald-400' : formData.password.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                           <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                            passwordChecks.upper ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                            passwordChecks.upper
+                              ? 'border-emerald-400 bg-emerald-500/10'
+                              : formData.password.length > 0
+                              ? 'border-destructive/60 bg-destructive/10'
+                              : 'border-border/50'
                           }`}>
                             {passwordChecks.upper ? '✓' : '•'}
                           </span>
                           <span>1 letra maiúscula</span>
                         </div>
 
-                        <div className={`flex items-center gap-1 ${passwordChecks.number ? 'text-emerald-400' : 'text-destructive'}`}>
+                        <div className={`flex items-center gap-1 ${passwordChecks.lower ? 'text-emerald-400' : formData.password.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                           <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                            passwordChecks.number ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                            passwordChecks.lower
+                              ? 'border-emerald-400 bg-emerald-500/10'
+                              : formData.password.length > 0
+                              ? 'border-destructive/60 bg-destructive/10'
+                              : 'border-border/50'
+                          }`}>
+                            {passwordChecks.lower ? '✓' : '•'}
+                          </span>
+                          <span>1 letra minúscula</span>
+                        </div>
+
+                        <div className={`flex items-center gap-1 ${passwordChecks.number ? 'text-emerald-400' : formData.password.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                            passwordChecks.number
+                              ? 'border-emerald-400 bg-emerald-500/10'
+                              : formData.password.length > 0
+                              ? 'border-destructive/60 bg-destructive/10'
+                              : 'border-border/50'
                           }`}>
                             {passwordChecks.number ? '✓' : '•'}
                           </span>
                           <span>1 número</span>
                         </div>
 
-                        <div className={`flex items-center gap-1 ${passwordChecks.special ? 'text-emerald-400' : 'text-destructive'}`}>
+                        <div className={`flex items-center gap-1 ${passwordChecks.special ? 'text-emerald-400' : formData.password.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                           <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                            passwordChecks.special ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                            passwordChecks.special
+                              ? 'border-emerald-400 bg-emerald-500/10'
+                              : formData.password.length > 0
+                              ? 'border-destructive/60 bg-destructive/10'
+                              : 'border-border/50'
                           }`}>
                             {passwordChecks.special ? '✓' : '•'}
                           </span>
@@ -435,6 +470,7 @@ export const RegisterForm: React.FC = () => {
                         value={formData.confirmPassword}
                         onChange={handleChange}
                         className={`pl-11 pr-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-pink/60 focus-visible:ring-cosmic-pink/30 ${
+                          // Lógica de highlight mais complexa
                           shouldHighlightConfirm ? 'border-destructive' : ''
                         }`}
                         disabled={loading}
@@ -449,15 +485,16 @@ export const RegisterForm: React.FC = () => {
                         {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                       </button>
                     </div>
-                    {getRequiredMessage('confirmPassword', 'Confirmar senha') && (
-                      <p className="text-sm text-destructive">
-                        {getRequiredMessage('confirmPassword', 'Confirmar senha')}
-                      </p>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                    )}
+                    {!errors.confirmPassword && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                      <p className="text-sm text-destructive">As senhas não coincidem.</p>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Forca da senha</span>
                     <span>{getPasswordStrengthText()}</span>
@@ -471,6 +508,7 @@ export const RegisterForm: React.FC = () => {
                   </div>
                 </div>
 
+              </div>
               <div className="space-y-4 rounded-3xl border border-border/30 bg-black/10 p-4">
                 <div className="flex items-start gap-3">
                   <Checkbox
@@ -478,7 +516,7 @@ export const RegisterForm: React.FC = () => {
                     checked={formData.termsAccepted}
                     onCheckedChange={handleCheckbox('termsAccepted')}
                     className={`border-border/50 data-[state=checked]:bg-cosmic-purple data-[state=checked]:border-cosmic-purple mt-1 ${
-                      isRequiredInvalid('termsAccepted') ? 'border-destructive' : ''
+                      isInvalid('termsAccepted') ? 'border-destructive' : ''
                     }`}
                   />
                   <label htmlFor="termsAccepted" className="text-sm text-muted-foreground leading-relaxed">
@@ -491,10 +529,8 @@ export const RegisterForm: React.FC = () => {
                     *
                   </label>
                 </div>
-                {getRequiredMessage('termsAccepted', 'Termos de Uso') && (
-                  <p className="text-sm text-destructive">
-                    {getRequiredMessage('termsAccepted', 'Termos de Uso')}
-                  </p>
+                {errors.termsAccepted && (
+                  <p className="text-sm text-destructive">{errors.termsAccepted}</p>
                 )}
 
                 <div className="flex items-start gap-3">
@@ -503,7 +539,7 @@ export const RegisterForm: React.FC = () => {
                     checked={formData.privacyAccepted}
                     onCheckedChange={handleCheckbox('privacyAccepted')}
                     className={`border-border/50 data-[state=checked]:bg-cosmic-purple data-[state=checked]:border-cosmic-purple mt-1 ${
-                      isRequiredInvalid('privacyAccepted') ? 'border-destructive' : ''
+                      isInvalid('privacyAccepted') ? 'border-destructive' : ''
                     }`}
                   />
                   <label htmlFor="privacyAccepted" className="text-sm text-muted-foreground leading-relaxed">
@@ -516,10 +552,8 @@ export const RegisterForm: React.FC = () => {
                     *
                   </label>
                 </div>
-                {getRequiredMessage('privacyAccepted', 'Política de Privacidade') && (
-                  <p className="text-sm text-destructive">
-                    {getRequiredMessage('privacyAccepted', 'Política de Privacidade')}
-                  </p>
+                {errors.privacyAccepted && (
+                  <p className="text-sm text-destructive">{errors.privacyAccepted}</p>
                 )}
 
                 <div className="flex items-start gap-3">
@@ -566,4 +600,3 @@ export const RegisterForm: React.FC = () => {
 
 
 export default RegisterForm;
-

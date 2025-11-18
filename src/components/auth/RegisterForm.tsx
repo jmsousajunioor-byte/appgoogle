@@ -5,7 +5,6 @@ import {
   Lock,
   User,
   Phone,
-  Calendar,
   FileText,
   Eye,
   EyeOff,
@@ -44,6 +43,7 @@ export const RegisterForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
 
   const passwordChecks = React.useMemo(() => {
     const pwd = formData.password || '';
@@ -55,6 +55,40 @@ export const RegisterForm: React.FC = () => {
       special: /[^A-Za-z0-9]/.test(pwd),
     };
   }, [formData.password]);
+
+  const passwordMeetsAllChecks = React.useMemo(
+    () => Object.values(passwordChecks).every(Boolean),
+    [passwordChecks]
+  );
+
+  const isRequiredInvalid = (name: keyof typeof formData) => {
+    const value = formData[name];
+    const isEmptyString = typeof value === 'string' && value.trim() === '';
+    const isFalsy = typeof value !== 'string' && !value;
+
+    return Boolean(errors[name]) || (submitted && (isEmptyString || isFalsy));
+  };
+
+  const getRequiredMessage = (name: keyof typeof formData, label?: string) => {
+    const existing = errors[name];
+    if (existing) return existing;
+
+    const value = formData[name];
+    const isEmptyString = typeof value === 'string' && value.trim() === '';
+    const isFalsy = typeof value !== 'string' && !value;
+
+    if (submitted && label && (isEmptyString || isFalsy)) {
+      return `${label} é obrigatório.`;
+    }
+
+    return '';
+  };
+
+  const shouldHighlightPassword =
+    isRequiredInvalid('password') ||
+    (!passwordMeetsAllChecks && (submitted || formData.password.length > 0));
+
+  const shouldHighlightConfirm = isRequiredInvalid('confirmPassword');
 
   const calculatePasswordStrength = (password: string): number => {
     let strength = 0;
@@ -111,6 +145,7 @@ export const RegisterForm: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setSubmitted(true);
     setErrors({});
     setLoading(true);
 
@@ -153,14 +188,14 @@ export const RegisterForm: React.FC = () => {
           }
         });
 
-        setErrors(newErrors);
-      } else {
-        toast({
-          title: 'Erro',
-          description: 'Ocorreu um erro ao criar sua conta. Tente novamente.',
-          variant: 'destructive',
-        });
-      }
+      setErrors(newErrors);
+    } else {
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Ocorreu um erro ao criar sua conta. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
     } finally {
       console.log('--- SUBMIT REGISTRO FINALIZADO ---');
       setLoading(false);
@@ -225,12 +260,14 @@ export const RegisterForm: React.FC = () => {
                       value={formData.fullName}
                       onChange={handleChange}
                       className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
-                        errors.fullName ? 'border-destructive animate-shake' : ''
+                        isRequiredInvalid('fullName') ? 'border-destructive animate-shake' : ''
                       }`}
                       disabled={loading}
                     />
                   </div>
-                  {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
+                  {getRequiredMessage('fullName', 'Nome completo') && (
+                    <p className="text-sm text-destructive">{getRequiredMessage('fullName', 'Nome completo')}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -247,16 +284,18 @@ export const RegisterForm: React.FC = () => {
                       value={formData.email}
                       onChange={handleChange}
                       className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
-                        errors.email ? 'border-destructive animate-shake' : ''
+                        isRequiredInvalid('email') ? 'border-destructive animate-shake' : ''
                       }`}
                       disabled={loading}
                       autoComplete="email"
                     />
                   </div>
-                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  {getRequiredMessage('email', 'Email') && (
+                    <p className="text-sm text-destructive">{getRequiredMessage('email', 'Email')}</p>
+                  )}
                 </div>
 
-                <div className="space-y-2">
+                  <div className="space-y-2">
                   <label htmlFor="cpf" className="text-sm font-medium text-foreground">
                     CPF (opcional)
                   </label>
@@ -302,138 +341,120 @@ export const RegisterForm: React.FC = () => {
                   {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="birthDate" className="text-sm font-medium text-foreground">
-                    Data de nascimento (opcional)
-                  </label>
-                  <div className="relative group">
-                    <Calendar className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-blue" />
-                    <Input
-                      id="birthDate"
-                      name="birthDate"
-                      type="text"
-                      placeholder="dd/mm/aaaa"
-                      value={formData.birthDate}
-                      onChange={handleChange}
-                      className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${
-                        errors.birthDate ? 'border-destructive animate-shake' : ''
-                      }`}
-                      disabled={loading}
-                    />
-                  </div>
-                  {errors.birthDate && <p className="text-sm text-destructive">{errors.birthDate}</p>}
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 items-start">
+                  <div className="space-y-2">
+                    <label htmlFor="password" className="text-sm font-medium text-foreground">
+                      Senha *
+                    </label>
+                    <div className="relative group">
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-pink" />
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="********"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className={`pl-11 pr-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-pink/60 focus-visible:ring-cosmic-pink/30 ${
+                          shouldHighlightPassword ? 'border-destructive' : ''
+                        }`}
+                        disabled={loading}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(prev => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-cosmic-pink"
+                        aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="password" className="text-sm font-medium text-foreground">
-                    Senha *
-                  </label>
-                  <div className="relative group">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-pink" />
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="********"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={`pl-11 pr-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-pink/60 focus-visible:ring-cosmic-pink/30 ${
-                        errors.password ? 'border-destructive animate-shake' : ''
-                      }`}
-                      disabled={loading}
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(prev => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-cosmic-pink"
-                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                    >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
+                    {/* Erro do Zod embaixo do campo */}
+                    {getRequiredMessage('password', 'Senha') && (
+                      <p className="text-sm text-destructive mt-1">{getRequiredMessage('password', 'Senha')}</p>
+                    )}
 
-                  {/* Erro do Zod embaixo do campo */}
-                  {errors.password && <p className="text-sm text-destructive mt-1">{errors.password}</p>}
+                    {/* Checklist em tempo real */}
+                    <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                      <p className="font-medium text-foreground/80">Sua senha deve conter:</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-destructive'}`}>
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                            passwordChecks.length ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                          }`}>
+                            {passwordChecks.length ? '✓' : '•'}
+                          </span>
+                          <span>Min. 8 caracteres</span>
+                        </div>
 
-                  {/* Checklist em tempo real */}
-                  <div className="mt-2 text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground/80">Sua senha deve conter:</p>
-                    <div className="grid grid-cols-2 gap-1">
-                      <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-muted-foreground'}`}>
-                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                          passwordChecks.length ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
-                        }`}>
-                          {passwordChecks.length ? '✓' : '•'}
-                        </span>
-                        <span>Min. 8 caracteres</span>
-                      </div>
+                        <div className={`flex items-center gap-1 ${passwordChecks.upper ? 'text-emerald-400' : 'text-destructive'}`}>
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                            passwordChecks.upper ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                          }`}>
+                            {passwordChecks.upper ? '✓' : '•'}
+                          </span>
+                          <span>1 letra maiúscula</span>
+                        </div>
 
-                      <div className={`flex items-center gap-1 ${passwordChecks.upper ? 'text-emerald-400' : 'text-muted-foreground'}`}>
-                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                          passwordChecks.upper ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
-                        }`}>
-                          {passwordChecks.upper ? '✓' : '•'}
-                        </span>
-                        <span>1 letra maiúscula</span>
-                      </div>
+                        <div className={`flex items-center gap-1 ${passwordChecks.number ? 'text-emerald-400' : 'text-destructive'}`}>
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                            passwordChecks.number ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                          }`}>
+                            {passwordChecks.number ? '✓' : '•'}
+                          </span>
+                          <span>1 número</span>
+                        </div>
 
-                      <div className={`flex items-center gap-1 ${passwordChecks.number ? 'text-emerald-400' : 'text-muted-foreground'}`}>
-                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                          passwordChecks.number ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
-                        }`}>
-                          {passwordChecks.number ? '✓' : '•'}
-                        </span>
-                        <span>1 número</span>
-                      </div>
-
-                      <div className={`flex items-center gap-1 ${passwordChecks.special ? 'text-emerald-400' : 'text-muted-foreground'}`}>
-                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
-                          passwordChecks.special ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
-                        }`}>
-                          {passwordChecks.special ? '✓' : '•'}
-                        </span>
-                        <span>1 caractere especial</span>
+                        <div className={`flex items-center gap-1 ${passwordChecks.special ? 'text-emerald-400' : 'text-destructive'}`}>
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                            passwordChecks.special ? 'border-emerald-400 bg-emerald-500/10' : 'border-destructive/60 bg-destructive/10'
+                          }`}>
+                            {passwordChecks.special ? '✓' : '•'}
+                          </span>
+                          <span>1 caractere especial</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-                    Confirmar senha *
-                  </label>
-                  <div className="relative group">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-pink" />
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      placeholder="********"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      className={`pl-11 pr-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-pink/60 focus-visible:ring-cosmic-pink/30 ${
-                        errors.confirmPassword ? 'border-destructive animate-shake' : ''
-                      }`}
-                      disabled={loading}
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(prev => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-cosmic-pink"
-                      aria-label={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
+                  <div className="space-y-2">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                      Confirmar senha *
+                    </label>
+                    <div className="relative group">
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-cosmic-pink" />
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        placeholder="********"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        className={`pl-11 pr-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-pink/60 focus-visible:ring-cosmic-pink/30 ${
+                          shouldHighlightConfirm ? 'border-destructive' : ''
+                        }`}
+                        disabled={loading}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(prev => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-cosmic-pink"
+                        aria-label={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    {getRequiredMessage('confirmPassword', 'Confirmar senha') && (
+                      <p className="text-sm text-destructive">
+                        {getRequiredMessage('confirmPassword', 'Confirmar senha')}
+                      </p>
+                    )}
                   </div>
-                  {errors.confirmPassword && (
-                    <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
+                </div>
+                <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>Forca da senha</span>
                   <span>{getPasswordStrengthText()}</span>
@@ -453,7 +474,9 @@ export const RegisterForm: React.FC = () => {
                     id="termsAccepted"
                     checked={formData.termsAccepted}
                     onCheckedChange={handleCheckbox('termsAccepted')}
-                    className="border-border/50 data-[state=checked]:bg-cosmic-purple data-[state=checked]:border-cosmic-purple mt-1"
+                    className={`border-border/50 data-[state=checked]:bg-cosmic-purple data-[state=checked]:border-cosmic-purple mt-1 ${
+                      isRequiredInvalid('termsAccepted') ? 'border-destructive' : ''
+                    }`}
                   />
                   <label htmlFor="termsAccepted" className="text-sm text-muted-foreground leading-relaxed">
                     Eu aceito os{' '}
@@ -465,14 +488,20 @@ export const RegisterForm: React.FC = () => {
                     *
                   </label>
                 </div>
-                {errors.termsAccepted && <p className="text-sm text-destructive">{errors.termsAccepted}</p>}
+                {getRequiredMessage('termsAccepted', 'Termos de Uso') && (
+                  <p className="text-sm text-destructive">
+                    {getRequiredMessage('termsAccepted', 'Termos de Uso')}
+                  </p>
+                )}
 
                 <div className="flex items-start gap-3">
                   <Checkbox
                     id="privacyAccepted"
                     checked={formData.privacyAccepted}
                     onCheckedChange={handleCheckbox('privacyAccepted')}
-                    className="border-border/50 data-[state=checked]:bg-cosmic-purple data-[state=checked]:border-cosmic-purple mt-1"
+                    className={`border-border/50 data-[state=checked]:bg-cosmic-purple data-[state=checked]:border-cosmic-purple mt-1 ${
+                      isRequiredInvalid('privacyAccepted') ? 'border-destructive' : ''
+                    }`}
                   />
                   <label htmlFor="privacyAccepted" className="text-sm text-muted-foreground leading-relaxed">
                     Eu aceito a{' '}
@@ -484,8 +513,10 @@ export const RegisterForm: React.FC = () => {
                     *
                   </label>
                 </div>
-                {errors.privacyAccepted && (
-                  <p className="text-sm text-destructive">{errors.privacyAccepted}</p>
+                {getRequiredMessage('privacyAccepted', 'Política de Privacidade') && (
+                  <p className="text-sm text-destructive">
+                    {getRequiredMessage('privacyAccepted', 'Política de Privacidade')}
+                  </p>
                 )}
 
                 <div className="flex items-start gap-3">
@@ -532,3 +563,4 @@ export const RegisterForm: React.FC = () => {
 
 
 export default RegisterForm;
+

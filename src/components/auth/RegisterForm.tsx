@@ -318,7 +318,9 @@ export const RegisterForm: React.FC = () => {
                   {errors.cpf && <p className="text-sm text-destructive">{errors.cpf}</p>}
                 </div>
 
-                <div className="space-y-2">
+              </div>
+
+              <div className="space-y-2">
                   <label htmlFor="phone" className="text-sm font-medium text-foreground">
                     Telefone (opcional)
                   </label>
@@ -453,20 +455,21 @@ export const RegisterForm: React.FC = () => {
                       </p>
                     )}
                   </div>
-                </div>
+                </div>
+
                 <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Forca da senha</span>
-                  <span>{getPasswordStrengthText()}</span>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Forca da senha</span>
+                    <span>{getPasswordStrengthText()}</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-border/40 overflow-hidden">
+                    <div
+                      className={`${getPasswordStrengthColor()} h-full rounded-full transition-all duration-300`}
+                      style={{ width: `${passwordStrength}%` }}
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
-                <div className="h-2 w-full rounded-full bg-border/40 overflow-hidden">
-                  <div
-                    className={`${getPasswordStrengthColor()} h-full rounded-full transition-all duration-300`}
-                    style={{ width: `${passwordStrength}%` }}
-                    aria-hidden="true"
-                  />
-                </div>
-              </div>
 
               <div className="space-y-4 rounded-3xl border border-border/30 bg-black/10 p-4">
                 <div className="flex items-start gap-3">

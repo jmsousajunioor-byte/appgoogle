@@ -45,6 +45,17 @@ export const RegisterForm: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
+  const passwordChecks = React.useMemo(() => {
+    const pwd = formData.password || '';
+
+    return {
+      length: pwd.length >= 8,
+      upper: /[A-Z]/.test(pwd),
+      number: /[0-9]/.test(pwd),
+      special: /[^A-Za-z0-9]/.test(pwd),
+    };
+  }, [formData.password]);
+
   const calculatePasswordStrength = (password: string): number => {
     let strength = 0;
     if (password.length >= 8) strength += 25;
@@ -98,56 +109,63 @@ export const RegisterForm: React.FC = () => {
     }
   };
 
- const handleSubmit = async (event: React.FormEvent) => {
-  event.preventDefault();
-  setErrors({});
-  setLoading(true);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrors({});
+    setLoading(true);
 
-  try {
-    console.log('--- SUBMIT REGISTRO INICIADO ---');
-    console.log('FORMDATA ATUAL:', formData);
+    try {
+      console.log('--- SUBMIT REGISTRO INICIADO ---');
+      console.log('FORMDATA ATUAL:', formData);
 
-    const validated = registerSchema.parse(formData);
-    console.log('DADOS VALIDADOS PELO ZOD:', validated);
+      const validated = registerSchema.parse(formData);
+      console.log('DADOS VALIDADOS PELO ZOD:', validated);
 
-    const response = await register(validated);
-    console.log('RESPOSTA DO useAuth.register:', response);
+      const response = await register(validated);
+      console.log('RESPOSTA DO useAuth.register:', response);
 
-    if (response.success) {
-      toast({
-        title: 'Cadastro realizado com sucesso!',
-        description: 'Enviamos um email de verificacao. Confirme o seu email para prosseguir.',
-        variant: 'default',
-      });
-      navigate('/verify-email');
-    } else {
-      toast({
-        title: 'Erro ao criar conta',
-        description: response.message,
-        variant: 'destructive',
-      });
+      if (response.success) {
+        toast({
+          title: 'Cadastro realizado com sucesso!',
+          description: 'Enviamos um email de verificacao. Confirme o seu email para prosseguir.',
+          variant: 'default',
+        });
+        navigate('/verify-email');
+      } else {
+        toast({
+          title: 'Erro ao criar conta',
+          description: response.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      if (error?.errors) {
+        const newErrors: Record<string, string> = {};
+
+        error.errors.forEach((issue: any) => {
+          const field = issue.path[0] as string;
+
+          // Se ja existe erro para esse campo, concatena as mensagens
+          if (newErrors[field]) {
+            newErrors[field] = `${newErrors[field]} | ${issue.message}`;
+          } else {
+            newErrors[field] = issue.message;
+          }
+        });
+
+        setErrors(newErrors);
+      } else {
+        toast({
+          title: 'Erro',
+          description: 'Ocorreu um erro ao criar sua conta. Tente novamente.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      console.log('--- SUBMIT REGISTRO FINALIZADO ---');
+      setLoading(false);
     }
-  } catch (error: any) {
-    console.error('ERRO NO HANDLE SUBMIT DO REGISTERFORM:', error);
-
-    if (error?.errors) {
-      const newErrors: Record<string, string> = {};
-      error.errors.forEach((issue: any) => {
-        newErrors[issue.path[0]] = issue.message;
-      });
-      setErrors(newErrors);
-    } else {
-      toast({
-        title: 'Erro',
-        description: 'Ocorreu um erro ao criar sua conta. Tente novamente.',
-        variant: 'destructive',
-      });
-    }
-  } finally {
-    console.log('--- SUBMIT REGISTRO FINALIZADO ---');
-    setLoading(false);
-  }
-};
+  };
 
   const getPasswordStrengthColor = () => {
     if (passwordStrength < 25) return 'bg-red-500';
@@ -334,7 +352,51 @@ export const RegisterForm: React.FC = () => {
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
-                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+
+                  {/* Erro do Zod embaixo do campo */}
+                  {errors.password && <p className="text-sm text-destructive mt-1">{errors.password}</p>}
+
+                  {/* Checklist em tempo real */}
+                  <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground/80">Sua senha deve conter:</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      <div className={`flex items-center gap-1 ${passwordChecks.length ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                          passwordChecks.length ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
+                        }`}>
+                          {passwordChecks.length ? '✓' : '•'}
+                        </span>
+                        <span>Min. 8 caracteres</span>
+                      </div>
+
+                      <div className={`flex items-center gap-1 ${passwordChecks.upper ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                          passwordChecks.upper ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
+                        }`}>
+                          {passwordChecks.upper ? '✓' : '•'}
+                        </span>
+                        <span>1 letra maiúscula</span>
+                      </div>
+
+                      <div className={`flex items-center gap-1 ${passwordChecks.number ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                          passwordChecks.number ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
+                        }`}>
+                          {passwordChecks.number ? '✓' : '•'}
+                        </span>
+                        <span>1 número</span>
+                      </div>
+
+                      <div className={`flex items-center gap-1 ${passwordChecks.special ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                        <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${
+                          passwordChecks.special ? 'border-emerald-400 bg-emerald-500/10' : 'border-border'
+                        }`}>
+                          {passwordChecks.special ? '✓' : '•'}
+                        </span>
+                        <span>1 caractere especial</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

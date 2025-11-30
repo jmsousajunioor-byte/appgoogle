@@ -62,22 +62,21 @@ export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) =
         {toasts.map(item => (
           <div
             key={item.id}
-            className={`pointer-events-auto rounded-2xl border border-border/40 bg-card/80 p-4 shadow-lg backdrop-blur ${
-              item.variant === 'destructive'
-                ? 'border-red-500/60 text-red-200'
-                : item.variant === 'success'
-                  ? 'border-emerald-500/60 text-emerald-200'
-                  : 'text-foreground'
-            }`}
+            className={`pointer-events-auto rounded-2xl border shadow-lg backdrop-blur-sm ${item.variant === 'destructive'
+              ? 'border-red-500/60 bg-red-950/95 text-red-100'
+              : item.variant === 'success'
+                ? 'border-emerald-500/60 bg-emerald-950/95 text-emerald-100'
+                : 'border-border/40 bg-card text-foreground'
+              }`}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start justify-between gap-4 p-4">
               <div>
                 {item.title && <p className="text-sm font-semibold">{item.title}</p>}
-                {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                {item.description && <p className="text-xs opacity-90">{item.description}</p>}
               </div>
               <button
                 type="button"
-                className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                className="text-xs uppercase tracking-wide opacity-70 hover:opacity-100"
                 onClick={() => dismiss(item.id)}
               >
                 fechar

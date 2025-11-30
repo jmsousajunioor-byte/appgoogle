@@ -5,7 +5,7 @@ import type { Page, User } from '../../types';
 interface SidebarProps {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
-  user: User;
+  user: User | null;
   isOpen: boolean;
   onClose: () => void;
   overdueCount?: number;
@@ -25,11 +25,10 @@ const NavItem: React.FC<{
     <a
       href="#"
       onClick={(e) => { e.preventDefault(); onClick(page); }}
-      className={`flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 group ${
-        isActive
-          ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold shadow-lg'
-          : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white'
-      }`}
+      className={`flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
+        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold shadow-lg'
+        : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white'
+        }`}
     >
       <Icon icon={icon} className={`h-6 w-6 transition-all duration-200 ${isActive ? 'text-white' : 'text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'}`} />
       <span className="text-base flex items-center gap-2">
@@ -79,11 +78,27 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, user, is
         </div>
 
         <div className="flex items-center space-x-4 mb-10">
-          <img src={user.avatarUrl} alt="Avatar do Usuário" className="w-12 h-12 rounded-full border-2 border-indigo-500" />
-          <div>
-            <p className="font-bold text-neutral-800 dark:text-neutral-100">{user.name}</p>
-            <span className="text-sm text-neutral-500 dark:text-neutral-400">{user.membership === 'Free' ? 'Gratuito' : 'Premium'} · Membro</span>
-          </div>
+          {user ? (
+            <>
+              <img
+                src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`}
+                alt="Avatar do Usuário"
+                className="w-12 h-12 rounded-full border-2 border-indigo-500"
+              />
+              <div>
+                <p className="font-bold text-neutral-800 dark:text-neutral-100">{user.name}</p>
+                <span className="text-sm text-neutral-500 dark:text-neutral-400">{user.membership === 'Free' ? 'Gratuito' : 'Premium'} · Membro</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center space-x-4 animate-pulse">
+              <div className="w-12 h-12 rounded-full bg-neutral-200 dark:bg-neutral-700"></div>
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-neutral-200 dark:bg-neutral-700 rounded"></div>
+                <div className="h-3 w-16 bg-neutral-200 dark:bg-neutral-700 rounded"></div>
+              </div>
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 flex flex-col space-y-2">

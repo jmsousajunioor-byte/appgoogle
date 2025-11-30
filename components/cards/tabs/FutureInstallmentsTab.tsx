@@ -15,7 +15,7 @@ const FutureInstallmentsTab: React.FC<FutureInstallmentsTabProps> = ({ installme
           Acompanhe os parcelamentos que serão cobrados nas próximas faturas.
         </p>
       </header>
-      <div className="p-4 bg-white dark:bg-neutral-900 rounded-2xl shadow-md">
+      <div className="p-4 bg-white/10 dark:bg-neutral-800/20 backdrop-blur-md rounded-2xl shadow-md border border-white/20 dark:border-neutral-700/30">
         <InstallmentList installments={installments} />
       </div>
     </div>

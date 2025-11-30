@@ -36,13 +36,31 @@ export async function criarUsuario(
   payload: Omit<User, 'membership'> & { membership?: User['membership'] },
 ) {
   try {
+    // Mapear campos do tipo User para colunas do banco de dados
+    // O banco usa snake_case (avatar_url) enquanto o tipo usa camelCase (avatarUrl)
+    const dataToInsert = {
+      id: payload.id,
+      name: payload.name,
+      email: payload.email,
+      avatar_url: payload.avatarUrl || null,
+      membership: payload.membership || 'Free',
+    };
+    
     const { data, error } = await supabaseClient
       .from(TABLE)
-      .insert([payload])
+      .insert([dataToInsert])
       .select()
       .single();
     if (error) throw error;
-    return data as User;
+    
+    // Mapear resposta do banco de volta para o tipo User
+    return {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      avatarUrl: data.avatar_url || undefined,
+      membership: data.membership || 'Free',
+    } as User;
   } catch (err) {
     console.error('Erro ao criar usuario:', err);
     throw new Error('Nao foi possivel criar o usuario.');

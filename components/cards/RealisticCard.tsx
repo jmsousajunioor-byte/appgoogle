@@ -83,47 +83,67 @@ const RealisticCard: React.FC<RealisticCardProps> = ({ card, onClick }) => {
   } = card;
 
   return (
+    <>
+    <style>{`
+      .card-realistic {
+        border-radius: 16px !important;
+        overflow: hidden !important;
+      }
+      .card-realistic > div {
+        border-radius: 16px !important;
+      }
+    `}</style>
     <div 
       ref={cardRef}
-      className={`relative w-full aspect-[1.586] rounded-2xl text-white p-6 flex flex-col justify-between shadow-lg ${onClick ? 'cursor-pointer' : ''}`}
-      style={cardStyle}
+      className={`card-realistic relative w-full aspect-[1.586] text-white p-3 sm:p-4 md:p-5 lg:p-6 flex flex-col justify-between ${onClick ? 'cursor-pointer' : ''}`}
+      style={{
+        ...cardStyle,
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.06), inset 0 0 0 1.5px rgba(255, 255, 255, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.05)'
+      }}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
     >
-      <div className="absolute inset-0 rounded-2xl overflow-hidden" style={glareStyle}></div>
+      <div 
+        className="absolute inset-0 rounded-2xl" 
+        style={{
+          ...glareStyle,
+          boxShadow: 'inset 0 0 0 1.5px rgba(255, 255, 255, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.05)'
+        }}
+      ></div>
       
       <div className="relative z-10 flex flex-col justify-between h-full" style={contentStyle}>
-        <div className="flex justify-between items-start">
-          <span className="font-bold">{nickname || 'Apelido do Cartão'}</span>
+        <div className="flex justify-between items-start gap-2">
+          <span className="font-bold text-xs sm:text-sm md:text-base truncate max-w-[60%]">{nickname || 'Apelido do Cartão'}</span>
           {brand && (
             <img
               src={brandLogos[brand]}
               alt={brand}
-              className="h-10 max-w-[100px] object-contain"
+              className="h-6 sm:h-7 md:h-8 lg:h-10 max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[100px] object-contain flex-shrink-0"
               style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5)) brightness(1.1)' }}
             />
           )}
         </div>
 
         <div>
-          <div className="font-mono text-2xl tracking-widest mb-4">
+          <div className="font-mono text-sm sm:text-base md:text-lg lg:text-2xl tracking-wider sm:tracking-widest mb-2 sm:mb-3 md:mb-4">
             •••• •••• •••• {last4}
           </div>
-          <div className="flex justify-between items-end text-sm">
-            <div>
-              <span className="opacity-70 block text-xs">Titular</span>
-              <span className="font-medium tracking-wider">{holderName}</span>
+          <div className="flex justify-between items-end text-[10px] sm:text-xs md:text-sm gap-2">
+            <div className="min-w-0 flex-1">
+              <span className="opacity-70 block text-[8px] sm:text-[10px] md:text-xs">Titular</span>
+              <span className="font-medium tracking-wide sm:tracking-wider truncate block">{holderName}</span>
             </div>
-            <div>
-              <span className="opacity-70 block text-xs">Validade</span>
-              <span className="font-medium tracking-wider">{expiration}</span>
+            <div className="flex-shrink-0 text-right">
+              <span className="opacity-70 block text-[8px] sm:text-[10px] md:text-xs">Validade</span>
+              <span className="font-medium tracking-wide sm:tracking-wider">{expiration}</span>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </>
   );
 };
 

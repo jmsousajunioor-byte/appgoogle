@@ -6,10 +6,15 @@ import type {
   ResetPasswordData,
   User,
 } from '@/types/auth.types';
-import { supabaseClient } from '@/lib/supabaseClient';
+import { supabaseClient } from '@/lib/supabaseClient'; // <-- CORREÇÃO CRÍTICA
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const getConfiguredRedirectBase = () => {
+  // Prioritize current origin (browser) to support preview deployments
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
   const fromEnv =
     import.meta.env.VITE_SUPABASE_REDIRECT_URL ||
     import.meta.env.VITE_APP_URL ||
@@ -19,17 +24,21 @@ const getConfiguredRedirectBase = () => {
     return fromEnv.replace(/\/$/, '');
   }
 
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-
   return undefined;
 };
 
 const buildRedirectUrl = (path: string) => {
   const base = getConfiguredRedirectBase();
   if (!base) return undefined;
-  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const trimmedBase = base.replace(/\/+$/, '');
+  if (trimmedBase.endsWith(normalizedPath)) {
+    return trimmedBase;
+  }
+  return `${trimmedBase}${normalizedPath}`;
 };
 
 const mapSupabaseUser = (supabaseUser: SupabaseUser | null): User | undefined => {
@@ -92,10 +101,14 @@ const handleSupabaseException = (error: unknown, fallbackMessage: string): AuthR
 export const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
     const { email, password } = credentials;
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await withTimeout(
+      supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      }),
+      8000,
+      'login',
+    );
 
     if (error || !data.user) {
       return {
@@ -157,6 +170,28 @@ export const register = async (payload: RegisterData): Promise<AuthResponse> => 
       };
     }
 
+    // Create profile in public.users table
+    const { error: profileError } = await supabaseClient
+      .from('users')
+      .insert([
+        {
+          id: data.user.id,
+          name: fullName,
+          email: email,
+          membership: 'Free',
+        },
+      ]);
+
+    if (profileError) {
+      console.error('Erro ao criar perfil do usuário:', profileError);
+      // Optional: Attempt to cleanup auth user if profile creation fails
+      // await supabaseClient.auth.admin.deleteUser(data.user.id);
+      return {
+        success: false,
+        message: 'Erro ao criar perfil do usuário. Tente novamente.',
+      };
+    }
+
     return buildAuthResponse({
       user: data.user,
       session: data.session,
@@ -174,7 +209,11 @@ export const logout = async (): Promise<void> => {
 
 export const verifyToken = async (): Promise<AuthResponse> => {
   try {
-    const { data, error } = await supabaseClient.auth.getUser();
+    const { data, error } = await withTimeout(
+      supabaseClient.auth.getUser(),
+      6000,
+      'verifyToken',
+    );
 
     if (error || !data.user) {
       return {
@@ -203,9 +242,13 @@ export const forgotPassword = async (payload: ForgotPasswordData): Promise<AuthR
     });
 
     if (error) {
+      const friendlyMessage =
+        error.status === 429
+          ? 'Foi enviada uma solicitacao recentemente. Aguarde antes de tentar novamente.'
+          : error.message ?? 'Erro ao solicitar redefinicao de senha';
       return {
         success: false,
-        message: error.message ?? 'Erro ao solicitar redefinição de senha',
+        message: friendlyMessage,
       };
     }
 
@@ -291,5 +334,19 @@ export const resendVerificationEmail = async (email: string): Promise<AuthRespon
     };
   } catch (error) {
     return handleSupabaseException(error, 'Não foi possível reenviar o email de verificação');
+  }
+};
+const withTimeout = async <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timeoutId: any;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`[timeout] ${label} após ${ms}ms`)), ms);
+  });
+  try {
+    const result = await Promise.race([promise, timeout]);
+    clearTimeout(timeoutId);
+    return result as T;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
 };

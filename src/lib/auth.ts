@@ -15,6 +15,9 @@ const persistTokens = (response: AuthResponse, rememberMe?: boolean) => {
   if (response.refreshToken) {
     window.localStorage.setItem('refreshToken', response.refreshToken);
   }
+  if (response.user) {
+    window.localStorage.setItem('authUser', JSON.stringify(response.user));
+  }
   if (rememberMe) {
     window.localStorage.setItem('rememberMe', 'true');
   } else {
@@ -45,12 +48,25 @@ export const logout = async (): Promise<void> => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('authToken');
       window.localStorage.removeItem('refreshToken');
+      window.localStorage.removeItem('authUser');
       window.localStorage.removeItem('rememberMe');
     }
   }
 };
 
 export const verifySession = () => api.verifyToken();
+
+export const getPersistedUser = (): AuthResponse => {
+  if (typeof window === 'undefined') return { success: false, message: 'No window' };
+  try {
+    const raw = window.localStorage.getItem('authUser');
+    if (!raw) return { success: false, message: 'No persisted user' };
+    const user = JSON.parse(raw);
+    return { success: true, message: 'Persisted user', user };
+  } catch {
+    return { success: false, message: 'Invalid persisted user' };
+  }
+};
 
 export const forgotPassword = (payload: ForgotPasswordData) => api.forgotPassword(payload);
 

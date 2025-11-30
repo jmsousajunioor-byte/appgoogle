@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import MainContent from './components/layout/MainContent';
-import { Page, Card as CardType, Invoice, BankAccount, Transaction, User, Budget, Goal, NewCard, NewBankAccount, NewTransaction, InvoiceStatus, TransactionType, Theme, NewBudget, NewGoal, InvoicePaymentRecord, NotificationItem, RecurringTransaction } from './types';
+import { Page, Card as CardType, Invoice, BankAccount, Transaction, User, Budget, Goal, NewCard, NewBankAccount, NewTransaction, InvoiceStatus, TransactionType, Theme, NewBudget, NewGoal, InvoicePaymentRecord, NotificationItem, RecurringTransaction, TransactionSummary } from './types';
 import DashboardPage from './components/pages/DashboardPage';
 import CreditCardsPage from './components/pages/CreditCardsPage';
 import BankAccountsPage from './components/pages/BankAccountsPage';
@@ -13,6 +13,7 @@ import ProfilePage from './components/pages/ProfilePage';
 import CardsDashboardPage from './components/pages/CardsDashboardPage';
 import SettingsPage from './components/pages/SettingsPage';
 import LoginPage from '@/pages/Login';
+import NewLoginPage from '@/pages/NewLogin';
 import RegisterPage from '@/pages/Register';
 import ForgotPasswordPage from '@/pages/ForgotPassword';
 import ResetPasswordPage from '@/pages/ResetPassword';
@@ -37,6 +38,7 @@ import {
 import {
   buscarUsuarioPorId,
   atualizarUsuario as atualizarUsuarioService,
+  criarUsuario,
 } from './src/services/usuariosService';
 import {
   mapCardFromSupabase,
@@ -45,6 +47,7 @@ import {
   mapInvoiceFromSupabase,
 } from './src/services/mappers';
 import { listarFaturasPorCartoes } from './src/services/faturasService';
+import { getTransactionSummaries, getTransactionDetails } from './src/services/cardTransactionsService';
 
 const DEFAULT_USER_ID =
   (import.meta.env.VITE_SUPABASE_DEFAULT_USER_ID as string | undefined) ||
@@ -87,25 +90,62 @@ const AppContainer: React.FC = () => {
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const { isAuthenticated, loading: authLoading, logout } = useAuth();
+  const {
+    user: authUser,
+    isAuthenticated,
+    loading: authLoading,
+    logout,
+    recoveryMode,
+    enterRecoveryMode,
+    clearRecoveryMode,
+  } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   // --- STATE MANAGEMENT ---
-  const [user, setUser] = useState<User>(mockUser);
-  const [cards, setCards] = useState<CardType[]>(mockCards);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(mockBankAccounts);
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
-  const [budgets, setBudgets] = useState<Budget[]>(mockBudgets);
-  const [goals, setGoals] = useState<Goal[]>(mockGoals);
+  const [user, setUser] = useState<User | null>(null);
+  const [cards, setCards] = useState<CardType[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [transactionSummaries, setTransactionSummaries] = useState<TransactionSummary[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [cardSettings, setCardSettings] = useState<Record<string, { alertThreshold: number }>>({});
   const [invoicePayments, setInvoicePayments] = useState<InvoicePaymentRecord[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [recurrences, setRecurrences] = useState<RecurringTransaction[]>([]);
   const [isInvoicesModalOpen, setIsInvoicesModalOpen] = useState(false);
 
-  const authRoutes = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const authRoutes = ['/login', '/register', '/forgot-password'];
+  const isResetPasswordRoute = location.pathname.startsWith('/reset-password');
+  const handledRecoveryRedirect = useRef(false);
+  const hasRecoveryParams = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search.replace(/^\?/, ''));
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const typeRecovery = searchParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
+    const hasToken =
+      searchParams.has('token') ||
+      searchParams.has('code') ||
+      searchParams.has('access_token') ||
+      hashParams.has('token') ||
+      hashParams.has('code') ||
+      hashParams.has('access_token');
+    return typeRecovery || hasToken;
+  }, [location.search, location.hash]);
+  // RESUMO DO BUG ORIGINAL DO RESET DE SENHA
+  // Antes: ao clicar no link do email, o Supabase criava uma sessao (event PASSWORD_RECOVERY/SIGNED_IN)
+  // antes de o roteamento ver os tokens. Como nao havia flag de recuperacao aqui, o App entendia apenas
+  // "usuario autenticado" e jogava direto para a area logada (/dashboard), pulando o formulario de reset.
+  // Agora: sempre que ha tokens de recovery ou evento de PASSWORD_RECOVERY, marcamos recoveryMode e forçamos
+  // a renderizacao da rota /reset-password ate o fluxo terminar.
+  const shouldRenderResetPassword = isResetPasswordRoute || hasRecoveryParams || recoveryMode;
+
+  useEffect(() => {
+    if (hasRecoveryParams && !recoveryMode) {
+      enterRecoveryMode();
+    }
+  }, [enterRecoveryMode, hasRecoveryParams, recoveryMode]);
 
   useEffect(() => {
     if (isAuthenticated && authRoutes.includes(location.pathname)) {
@@ -114,55 +154,124 @@ const AppContainer: React.FC = () => {
   }, [isAuthenticated, location.pathname, navigate]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (handledRecoveryRedirect.current) return;
+    const wantsRecoveryPage = hasRecoveryParams || recoveryMode;
+    if (wantsRecoveryPage && !isResetPasswordRoute) {
+      handledRecoveryRedirect.current = true;
+      const suffix = hasRecoveryParams ? `${location.search}${location.hash}` : '';
+      navigate(`/reset-password${suffix}`, { replace: true });
+    }
+  }, [
+    hasRecoveryParams,
+    recoveryMode,
+    isResetPasswordRoute,
+    location.search,
+    location.hash,
+    navigate,
+  ]);
+
+  const loadInitialData = useCallback(async () => {
+    if (!isAuthenticated || !authUser?.id) {
       setIsBootstrapping(false);
       return;
     }
-    let active = true;
-    const loadInitialData = async () => {
-      try {
-        const [remoteCards, remoteTransactions, remoteUser] = await Promise.all([
-          listarCartoes(DEFAULT_USER_ID),
-          listarTransacoes({ userId: DEFAULT_USER_ID }),
-          buscarUsuarioPorId(DEFAULT_USER_ID).catch(() => null),
-        ]);
-        if (!active) return;
-        let mappedCards = cards;
-        if (remoteCards && remoteCards.length) {
-          mappedCards = remoteCards.map(mapCardFromSupabase);
-          setCards(mappedCards);
-        }
-        const cardIds = mappedCards.map(card => card.id);
-        if (cardIds.length) {
+
+    try {
+      const [remoteCards, remoteTransactions, remoteUser, remoteSummaries] = await Promise.all([
+        listarCartoes(authUser.id),
+        listarTransacoes({ userId: authUser.id }),
+        buscarUsuarioPorId(authUser.id).catch(() => null),
+        getTransactionSummaries(authUser.id).catch(() => []),
+      ]);
+
+      // Se houver usuário remoto no banco, usar os dados dele
+      if (remoteUser) {
+        setUser(mapUserFromSupabase(remoteUser));
+      } else {
+        // Se não houver perfil no banco, criar um perfil padrão com avatar gerado
+        // Isso evita crashes ao tentar acessar user.avatarUrl antes do perfil ser criado
+        const defaultUser: User = {
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.fullName,
+          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser.fullName)}&background=6366f1&color=fff`,
+          membership: 'Free',
+        };
+        setUser(defaultUser);
+
+        // Criar perfil no banco de dados para próximas sessões
+        // Isso garante que o usuário terá um perfil persistente
+        void criarUsuario({
+          id: authUser.id,
+          name: authUser.fullName,
+          email: authUser.email,
+          avatarUrl: defaultUser.avatarUrl,
+          membership: 'Free',
+        }).catch(err => console.error('Erro ao criar perfil automaticamente:', err));
+      }
+
+      let mappedCards: CardType[] = [];
+      if (remoteCards && remoteCards.length) {
+        mappedCards = remoteCards.map(mapCardFromSupabase);
+        setCards(mappedCards);
+      } else {
+        const cached = typeof window !== 'undefined' ? window.localStorage.getItem('cards') : null;
+        if (cached) {
           try {
-            const remoteInvoices = await listarFaturasPorCartoes(cardIds);
-            if (active && remoteInvoices?.length) {
-              setInvoices(remoteInvoices.map(mapInvoiceFromSupabase));
-            }
-          } catch (invoiceError) {
-            console.error('Erro ao listar faturas:', invoiceError);
+            const parsed = JSON.parse(cached) as CardType[];
+            mappedCards = parsed;
+            setCards(parsed);
+          } catch {
+            setCards([]);
           }
-        }
-        if (remoteTransactions && remoteTransactions.length) {
-          setTransactions(remoteTransactions.map(mapTransactionFromSupabase));
-        }
-        if (remoteUser) {
-          setUser(mapUserFromSupabase(remoteUser));
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados do Supabase:', error);
-      } finally {
-        if (active) {
-          setIsBootstrapping(false);
+        } else {
+          setCards([]);
         }
       }
-    };
-    setIsBootstrapping(true);
+
+      const cardIds = mappedCards.map(card => card.id);
+      if (cardIds.length) {
+        try {
+          const remoteInvoices = await listarFaturasPorCartoes(cardIds);
+          if (remoteInvoices?.length) {
+            setInvoices(remoteInvoices.map(mapInvoiceFromSupabase));
+          } else {
+            setInvoices([]);
+          }
+        } catch (invoiceError) {
+          console.error('Erro ao listar faturas:', invoiceError);
+        }
+      } else {
+        setInvoices([]);
+      }
+
+      if (remoteTransactions && remoteTransactions.length) {
+        setTransactions(remoteTransactions.map(mapTransactionFromSupabase));
+      } else {
+        setTransactions([]); // Clear mock data
+      }
+
+      if (remoteSummaries && remoteSummaries.length) {
+        setTransactionSummaries(remoteSummaries);
+      } else {
+        setTransactionSummaries([]);
+      }
+
+      // Clear other mock data that isn't persisted yet to avoid confusion
+      setBankAccounts([]);
+      setBudgets([]);
+      setGoals([]);
+
+    } catch (error) {
+      console.error('Erro ao carregar dados do Supabase:', error);
+    } finally {
+      setIsBootstrapping(false);
+    }
+  }, [isAuthenticated, authUser?.id]);
+
+  useEffect(() => {
     loadInitialData();
-    return () => {
-      active = false;
-    };
-  }, [isAuthenticated]);
+  }, [loadInitialData]);
 
 
   // --- DERIVED STATE & MEMOS ---
@@ -178,34 +287,39 @@ const AppContainer: React.FC = () => {
       return { ...card, currentInvoiceAmount, availableLimit, dueDate, invoiceStatus: currentInvoice?.status || InvoiceStatus.Paid };
     });
   }, [cards, transactions, invoices]);
-  
+
   const dashboardSummary = useMemo(() => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     const monthlyTx = transactions.filter(t => {
-        const txDate = new Date(t.date);
-        return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+      const txDate = new Date(t.date);
+      return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
     });
 
     return {
-        totalBalance: bankAccounts.reduce((sum, acc) => sum + acc.balance, 0),
-        totalIncome: monthlyTx.filter(t => t.type === TransactionType.Income).reduce((sum, t) => sum + t.amount, 0),
-        totalExpenses: monthlyTx.filter(t => t.type === TransactionType.Expense).reduce((sum, t) => sum + t.amount, 0),
-        creditCardDebt: invoices.filter(inv => inv.status === InvoiceStatus.Pending).reduce((sum, inv) => sum + inv.totalAmount, 0),
+      totalBalance: bankAccounts.reduce((sum, acc) => sum + acc.balance, 0),
+      totalIncome: monthlyTx.filter(t => t.type === TransactionType.Income).reduce((sum, t) => sum + t.amount, 0),
+      totalExpenses: monthlyTx.filter(t => t.type === TransactionType.Expense).reduce((sum, t) => sum + t.amount, 0),
+      creditCardDebt: invoices.filter(inv => inv.status === InvoiceStatus.Pending).reduce((sum, inv) => sum + inv.totalAmount, 0),
     }
   }, [bankAccounts, transactions, invoices]);
 
 
   // --- HANDLER FUNCTIONS ---
   const handleAddCard = (newCard: NewCard) => {
+    if (!authUser?.id) return;
     (async () => {
       try {
         const created = await criarCartaoService({
           ...newCard,
-          user_id: DEFAULT_USER_ID,
+          user_id: authUser.id,
         });
         if (created) {
-          setCards(prev => [...prev, created as CardType]);
+          setCards(prev => {
+            const next = [...prev, created as CardType];
+            if (typeof window !== 'undefined') window.localStorage.setItem('cards', JSON.stringify(next));
+            return next;
+          });
           return;
         }
       } catch (error) {
@@ -216,12 +330,20 @@ const AppContainer: React.FC = () => {
         id: `c${Date.now()}`,
         gradient: newCard.gradient || { start: '#4B5563', end: '#1F2937' },
       };
-      setCards(prev => [...prev, fallback]);
+      setCards(prev => {
+        const next = [...prev, fallback];
+        if (typeof window !== 'undefined') window.localStorage.setItem('cards', JSON.stringify(next));
+        return next;
+      });
     })();
   };
 
   const handleUpdateCard = (updated: CardType) => {
-    setCards(prev => prev.map(c => (c.id === updated.id ? { ...updated } : c)));
+    setCards(prev => {
+      const next = prev.map(c => (c.id === updated.id ? { ...updated } : c));
+      if (typeof window !== 'undefined') window.localStorage.setItem('cards', JSON.stringify(next));
+      return next;
+    });
     (async () => {
       try {
         await atualizarCartaoService(updated.id, stripId(updated));
@@ -237,55 +359,90 @@ const AppContainer: React.FC = () => {
   };
 
   const persistTransactions = (txs: (Transaction | NewTransaction)[]) => {
-    if (!txs.length) return;
+    if (!txs.length || !authUser?.id) return;
     void Promise.all(
       txs.map(tx =>
         criarTransacaoService({
           ...toNewTransactionPayload(tx),
-          user_id: DEFAULT_USER_ID,
+          user_id: authUser.id,
         }),
       ),
     ).catch(error => console.error('Erro ao persistir transacoes:', error));
   };
 
-  const handleAddTransaction = (newTx: NewTransaction) => {
-    // If credit purchase, route to invoice engine and possibly generate installments
-    const isCredit = newTx.paymentMethod === TransactionType ? false : newTx.paymentMethod === 'credit' || newTx.paymentMethod === (undefined as any);
-    const isCardSource = typeof newTx.sourceId === 'string' && newTx.sourceId.startsWith('c');
-    if (newTx.paymentMethod === (undefined as any)) {
-      // keep fallback path, but normally paymentMethod is defined
-    }
+  const handleAddTransaction = async (newTx: NewTransaction) => {
+    if (!authUser?.id) return;
 
-    if (newTx.paymentMethod === 'credit' && isCardSource) {
-      const card = cards.find(c => c.id === newTx.sourceId);
-      if (card) {
-        const { createdTxs } = addCreditPurchaseToInvoices({
-          invoices,
-          setInvoices,
-          card,
-          baseTransaction: { ...newTx },
-        });
-        // prepend created transactions
-        setTransactions(prev => [...createdTxs, ...prev]);
-        persistTransactions(createdTxs);
-        // No bank account balance to update for credit purchases
-        return;
-      }
-    }
+    try {
+      // 1. Handle Credit Card Transactions (Installment or Single)
+      const isCredit = newTx.paymentMethod === 'credit';
+      const isCardSource = typeof newTx.sourceId === 'string' && newTx.sourceId.startsWith('c'); // Assuming card IDs start with 'c' or are UUIDs
 
-    // Non-credit or bank-account transactions fall back to original behavior
-    const tx: Transaction = { ...newTx, id: `t${Date.now()}` };
-    setTransactions(prev => [tx, ...prev]);
+      if (isCredit && newTx.sourceId) {
+        const card = cards.find(c => c.id === newTx.sourceId);
+        if (card) {
+          // Use the new service for card transactions (supports aggregation)
+          const { createCardTransaction } = await import('./src/services/cardTransactionsService');
 
-    // Update account balance only for bank account sources (not for cards)
-    setBankAccounts(prev => prev.map(acc => {
-        if (acc.id === tx.sourceId) {
-            const newBalance = tx.type === TransactionType.Income ? acc.balance + tx.amount : acc.balance - tx.amount;
-            return { ...acc, balance: newBalance };
+          const result = await createCardTransaction(
+            authUser.id,
+            card.id,
+            {
+              description: newTx.description,
+              totalAmount: newTx.amount,
+              installmentCount: newTx.isInstallment && newTx.installment ? newTx.installment.total : 1,
+              purchaseDate: newTx.date,
+              category: newTx.category,
+              cardId: card.id, // Added required field
+            },
+            card
+          );
+
+          if (result) {
+            // Refresh data to ensure consistency
+            // In a real app, we might want to optimistically update, but for correctness with invoices, fetching is safer
+            const { listarTransacoes } = await import('./src/services/transacoesService');
+            const { listarFaturasPorCartoes } = await import('./src/services/faturasService');
+            const { mapTransactionFromSupabase, mapInvoiceFromSupabase } = await import('./src/services/mappers');
+
+            const [remoteTransactions, remoteInvoices] = await Promise.all([
+              listarTransacoes({ userId: authUser.id }),
+              listarFaturasPorCartoes(cards.map(c => c.id))
+            ]);
+
+            if (remoteTransactions) setTransactions(remoteTransactions.map(mapTransactionFromSupabase));
+            if (remoteInvoices) setInvoices(remoteInvoices.map(mapInvoiceFromSupabase));
+          }
+          return;
         }
-        return acc;
-    }));
-    persistTransactions([tx]);
+      }
+
+      // 2. Handle Bank Account / Cash Transactions
+      const { criarTransacao } = await import('./src/services/transacoesService');
+      const created = await criarTransacao({
+        ...toNewTransactionPayload(newTx),
+        user_id: authUser.id,
+      });
+
+      if (created) {
+        setTransactions(prev => [created, ...prev]);
+
+        // Update bank account balance
+        setBankAccounts(prev => prev.map(acc => {
+          if (acc.id === newTx.sourceId) {
+            const newBalance = newTx.type === TransactionType.Income
+              ? acc.balance + newTx.amount
+              : acc.balance - newTx.amount;
+            return { ...acc, balance: newBalance };
+          }
+          return acc;
+        }));
+      }
+
+    } catch (error) {
+      console.error('Erro ao adicionar transação:', error);
+      // TODO: Show toast error
+    }
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
@@ -297,23 +454,23 @@ const AppContainer: React.FC = () => {
 
     // Update account balances, handling changes in amount, type, and source account
     setBankAccounts(prev => prev.map(acc => {
-        let newBalance = acc.balance;
-        const isOriginalSource = acc.id === originalTx.sourceId;
-        const isNewSource = acc.id === updatedTx.sourceId;
+      let newBalance = acc.balance;
+      const isOriginalSource = acc.id === originalTx.sourceId;
+      const isNewSource = acc.id === updatedTx.sourceId;
 
-        // Revert original transaction if it was a bank account transaction
-        if (isOriginalSource && !originalTx.sourceId.startsWith('c')) {
-            if (originalTx.type === TransactionType.Income) newBalance -= originalTx.amount;
-            if (originalTx.type === TransactionType.Expense) newBalance += originalTx.amount;
-        }
+      // Revert original transaction if it was a bank account transaction
+      if (isOriginalSource && !originalTx.sourceId.startsWith('c')) {
+        if (originalTx.type === TransactionType.Income) newBalance -= originalTx.amount;
+        if (originalTx.type === TransactionType.Expense) newBalance += originalTx.amount;
+      }
 
-        // Apply updated transaction if it's a bank account transaction
-        if (isNewSource && !updatedTx.sourceId.startsWith('c')) {
-            if (updatedTx.type === TransactionType.Income) newBalance += updatedTx.amount;
-            if (updatedTx.type === TransactionType.Expense) newBalance -= updatedTx.amount;
-        }
+      // Apply updated transaction if it's a bank account transaction
+      if (isNewSource && !updatedTx.sourceId.startsWith('c')) {
+        if (updatedTx.type === TransactionType.Income) newBalance += updatedTx.amount;
+        if (updatedTx.type === TransactionType.Expense) newBalance -= updatedTx.amount;
+      }
 
-        return { ...acc, balance: newBalance };
+      return { ...acc, balance: newBalance };
     }));
 
     (async () => {
@@ -328,19 +485,20 @@ const AppContainer: React.FC = () => {
   const handleUpdateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
     setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status, paymentDate: status === InvoiceStatus.Paid ? new Date().toISOString() : undefined } : inv));
   };
-  
+
   const handleUpdateUser = (updatedUser: User) => {
+    if (!authUser?.id) return;
     setUser(updatedUser);
-    void atualizarUsuarioService(DEFAULT_USER_ID, updatedUser).catch(error => {
+    void atualizarUsuarioService(authUser.id, updatedUser).catch(error => {
       console.error('Erro ao atualizar usuario no Supabase:', error);
     });
   };
-  
+
   const handleAddBudget = (newBudget: NewBudget) => {
     const budget: Budget = { ...newBudget, id: `bud${Date.now()}` };
     setBudgets(prev => [...prev, budget]);
   };
-  
+
   const handleAddGoal = (newGoal: NewGoal) => {
     const goal: Goal = { ...newGoal, id: `g${Date.now()}` };
     setGoals(prev => [...prev, goal]);
@@ -348,8 +506,8 @@ const AppContainer: React.FC = () => {
 
   const handleUpdateCardSettings = (cardId: string, threshold: number) => {
     setCardSettings(prev => ({
-        ...prev,
-        [cardId]: { alertThreshold: threshold },
+      ...prev,
+      [cardId]: { alertThreshold: threshold },
     }));
   };
 
@@ -413,202 +571,65 @@ const AppContainer: React.FC = () => {
       });
     });
   };
-  
+
   const allAccounts = useMemo(() => [...bankAccounts, ...cards], [bankAccounts, cards]);
 
   // --- BACKGROUND JOBS: recurrences and notifications ---
-  React.useEffect(() => {
-    const today = new Date();
-    const ym = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  // --- BACKGROUND JOBS: recurrences and notifications ---
+  useEffect(() => {
+    if (!authUser?.id) return;
 
-    // Process recurrences (credit only)
-    setRecurrences(prev => {
-      const updated = prev.map(rec => {
-        if (!rec.active) return rec;
-        const start = new Date(rec.startDate);
-        const end = rec.endDate ? new Date(rec.endDate) : null;
-        const within = start <= today && (!end || today <= end);
-        const shouldRun = within && today.getDate() === rec.dayOfMonth && rec.lastRunMonth !== ym;
-        if (shouldRun) {
-          const card = cards.find(c => c.id === rec.cardId);
-          if (card) {
-            addCreditPurchaseToInvoices({
-              invoices,
-              setInvoices,
-              card,
-              baseTransaction: {
-                description: `${rec.description} (recorrente)`,
-                amount: rec.amount,
-                category: rec.category,
-                date: today.toISOString(),
-                type: TransactionType.Expense,
-                paymentMethod: 'credit' as any,
-                sourceId: card.id,
-                isInstallment: false,
-              },
-            });
-          }
-          return { ...rec, lastRunMonth: ym };
+    const runRecurrences = async () => {
+      try {
+        const { processRecurringTransactions } = await import('./src/services/recurringTransactionsService');
+        const generated = await processRecurringTransactions(authUser.id);
+        if (generated && generated.length > 0) {
+          await loadInitialData();
         }
-        return rec;
-      });
-      return updated;
-    });
+      } catch (err) {
+        console.error('Error processing recurrences:', err);
+      }
+    };
+    runRecurrences();
 
     // Notifications
+    const today = new Date();
     setNotifications(prev => {
       const out = [...prev];
-      const in3 = new Date(today); in3.setDate(in3.getDate()+3);
+      const in3 = new Date(today); in3.setDate(in3.getDate() + 3);
+
       invoices.forEach(inv => {
         if (inv.status === InvoiceStatus.Paid) return;
         const due = new Date(inv.dueDate);
+
+        const dueId = `n${inv.id}_due`;
         if (due >= today && due <= in3) {
-          out.push({ id: `n${Date.now()}_${inv.id}_due`, type: 'due-soon', title: 'Fatura vencendo em breve', message: `Fatura ${inv.month}/${inv.year} vence em ${formatDate(inv.dueDate)}`, dateISO: today.toISOString(), read: false, invoiceId: inv.id, cardId: inv.cardId });
+          if (!out.find(n => n.id.includes(inv.id) && n.type === 'due-soon')) {
+            out.push({ id: dueId, type: 'due-soon', title: 'Fatura vencendo em breve', message: `Fatura ${inv.month}/${inv.year} vence em ${formatDate(inv.dueDate)}`, dateISO: today.toISOString(), read: false, invoiceId: inv.id, cardId: inv.cardId });
+          }
         }
+
+        const ovdId = `n${inv.id}_ovd`;
         if (due < today && (inv.status === InvoiceStatus.Overdue)) {
-          out.push({ id: `n${Date.now()}_${inv.id}_ovd`, type: 'overdue', title: 'Fatura em atraso', message: `Fatura ${inv.month}/${inv.year} está em atraso`, dateISO: today.toISOString(), read: false, invoiceId: inv.id, cardId: inv.cardId });
+          if (!out.find(n => n.id.includes(inv.id) && n.type === 'overdue')) {
+            out.push({ id: ovdId, type: 'overdue', title: 'Fatura em atraso', message: `Fatura ${inv.month}/${inv.year} está em atraso`, dateISO: today.toISOString(), read: false, invoiceId: inv.id, cardId: inv.cardId });
+          }
         }
       });
       return out;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // --- PAGE RENDERING ---
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return <DashboardPage 
-                  summary={dashboardSummary} 
-                  cards={enhancedCards} 
-                  transactions={transactions} 
-                  onAddTransaction={handleAddTransaction}
-                  onUpdateTransaction={handleUpdateTransaction}
-                  onNavigate={setCurrentPage}
-                  onShowInvoicesModal={handleShowInvoicesModal}
-                  invoices={invoices}
-                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
-                  cardSettings={cardSettings}
-                  onUpdateCardSettings={handleUpdateCardSettings}
-                  accounts={allAccounts}
-                  onAddCard={handleAddCard}
-                  onUpdateCard={handleUpdateCard}
-                  payments={invoicePayments}
-                  onRegisterInvoicePayment={handleRegisterInvoicePayment}
-                  onRefundInvoiceTransaction={handleRefundInvoiceTransaction}
-                  onRefundInstallmentGroup={handleRefundInstallmentGroup}
-                />;
-      case 'credit-cards':
-        return <CreditCardsPage 
-                    cards={enhancedCards} 
-                    invoices={invoices} 
-                    onAddCard={handleAddCard} 
-                    onUpdateInvoiceStatus={handleUpdateInvoiceStatus} 
-                    cardSettings={cardSettings}
-                    onUpdateCardSettings={handleUpdateCardSettings}
-                    onUpdateCard={handleUpdateCard}
-                    payments={invoicePayments}
-                    onRegisterInvoicePayment={handleRegisterInvoicePayment}
-                    onRefundInvoiceTransaction={handleRefundInvoiceTransaction}
-                    onRefundInstallmentGroup={handleRefundInstallmentGroup}
-                    onNavigate={setCurrentPage}
-                    onShowInvoicesModal={handleShowInvoicesModal}
-                />;
-      case 'cards-dashboard':
-        return <CardsDashboardPage
-                  cards={enhancedCards}
-                  invoices={invoices}
-                  transactions={transactions}
-                  summary={dashboardSummary}
-                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
-                  onRegisterInvoicePayment={handleRegisterInvoicePayment}
-                  onNavigate={setCurrentPage}
-                  onShowInvoicesModal={handleShowInvoicesModal}
-                  cardSettings={cardSettings}
-                  onUpdateCardSettings={handleUpdateCardSettings}
-                  onAddCard={handleAddCard}
-                  onUpdateCard={handleUpdateCard}
-                  payments={invoicePayments}
-                  onRefundInvoiceTransaction={handleRefundInvoiceTransaction}
-                  onRefundInstallmentGroup={handleRefundInstallmentGroup}
-                  accounts={allAccounts}
-                  onAddTransaction={handleAddTransaction}
-                  onUpdateTransaction={handleUpdateTransaction}
-                />;
-      case 'bank-accounts':
-        return <BankAccountsPage accounts={bankAccounts} onAddAccount={handleAddBankAccount} />;
-      case 'transactions':
-        return <TransactionsPage 
-                  transactions={transactions} 
-                  onAddTransaction={handleAddTransaction} 
-                  onUpdateTransaction={handleUpdateTransaction}
-                  accounts={allAccounts}
-                />;
-      case 'invoices':
-        return <InvoicesPage
-                  cards={cards}
-                  invoices={invoices}
-                  payments={invoicePayments}
-                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
-                  onRegisterInvoicePayment={handleRegisterInvoicePayment}
-                  onRefundTransaction={handleRefundInvoiceTransaction}
-                  onRefundGroup={handleRefundInstallmentGroup}
-                />;
-      case 'reports':
-        return <ReportsPage transactions={transactions} />;
-      case 'budgets':
-        return <BudgetsPage budgets={budgets} transactions={transactions} onAddBudget={handleAddBudget} />;
-      case 'profile':
-        return <ProfilePage user={user} onUpdateUser={handleUpdateUser} />;
-      case 'settings':
-        return <SettingsPage 
-          cards={cards}
-          notifications={notifications}
-          recurrences={recurrences}
-          onAddRecurrence={handleAddRecurrence}
-          onToggleRecurrence={handleToggleRecurrence}
-          onDeleteRecurrence={handleDeleteRecurrence}
-          onMarkNotificationRead={handleMarkNotificationRead}
-          onClearNotifications={handleClearNotifications}
-        />;
-      default:
-        return <DashboardPage 
-                  summary={dashboardSummary} 
-                  cards={enhancedCards} 
-                  transactions={transactions} 
-                  onAddTransaction={handleAddTransaction}
-                  onUpdateTransaction={handleUpdateTransaction}
-                  onNavigate={setCurrentPage}
-                  onShowInvoicesModal={handleShowInvoicesModal}
-                  invoices={invoices}
-                  onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
-                  cardSettings={cardSettings}
-                  onUpdateCardSettings={handleUpdateCardSettings}
-                  accounts={allAccounts}
-                  onAddCard={handleAddCard}
-                  onUpdateCard={handleUpdateCard}
-                />;
-    }
-  };
-
-  const themeValue = { theme, setTheme };
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const root = document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
-    document.body.classList.toggle('dark', theme === 'dark');
-    window.localStorage.setItem('theme', theme);
-  }, [theme]);
+  }, [authUser, invoices]);
 
   // Recurrences/Notifications handlers
-  const handleAddRecurrence = (input: { description: string; amount: number; category: any; cardId: string; dayOfMonth: number; startDate?: string; endDate?: string; }) => {
+  const handleAddRecurrence = (input: { description: string; amount: number; category: any; cardId: string; dayOfMonth: number; startDate?: string; endDate?: string; frequency: 'weekly' | 'monthly' | 'yearly' }) => {
     const rec: RecurringTransaction = {
       id: `rec${Date.now()}`,
       description: input.description,
       amount: input.amount,
       category: input.category,
       cardId: input.cardId,
-      dayOfMonth: input.dayOfMonth,
+      dayOfPeriod: input.dayOfMonth, // Input still uses dayOfMonth from form, mapping to dayOfPeriod
+      frequency: input.frequency,
       active: true,
       startDate: input.startDate || new Date().toISOString(),
       endDate: input.endDate,
@@ -635,6 +656,7 @@ const AppContainer: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logout();
+      clearRecoveryMode();
     } finally {
       setIsSidebarOpen(false);
       setCurrentPage('dashboard');
@@ -644,6 +666,140 @@ const AppContainer: React.FC = () => {
   };
   const handleShowInvoicesModal = () => setIsInvoicesModalOpen(true);
   const handleCloseInvoicesModal = () => setIsInvoicesModalOpen(false);
+
+  // --- PAGE RENDERING ---
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <DashboardPage
+          summary={dashboardSummary}
+          cards={enhancedCards}
+          transactions={transactions}
+          onAddTransaction={handleAddTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
+          onNavigate={setCurrentPage}
+          onShowInvoicesModal={handleShowInvoicesModal}
+          invoices={invoices}
+          onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+          cardSettings={cardSettings}
+          onUpdateCardSettings={handleUpdateCardSettings}
+          accounts={allAccounts}
+          onAddCard={handleAddCard}
+          onUpdateCard={handleUpdateCard}
+          payments={invoicePayments}
+          onRegisterInvoicePayment={handleRegisterInvoicePayment}
+          onRefundInvoiceTransaction={handleRefundInvoiceTransaction}
+          onRefundInstallmentGroup={handleRefundInstallmentGroup}
+        />;
+      case 'credit-cards':
+        return <CreditCardsPage
+          cards={enhancedCards}
+          invoices={invoices}
+          onAddCard={handleAddCard}
+          onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+          cardSettings={cardSettings}
+          onUpdateCardSettings={handleUpdateCardSettings}
+          onUpdateCard={handleUpdateCard}
+          payments={invoicePayments}
+          onRegisterInvoicePayment={handleRegisterInvoicePayment}
+          onRefundInvoiceTransaction={handleRefundInvoiceTransaction}
+          onRefundInstallmentGroup={handleRefundInstallmentGroup}
+          onNavigate={setCurrentPage}
+          onShowInvoicesModal={handleShowInvoicesModal}
+        />;
+      case 'cards-dashboard':
+        return <CardsDashboardPage
+          cards={enhancedCards}
+          invoices={invoices}
+          transactions={transactions}
+          summary={dashboardSummary}
+          onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+          onRegisterInvoicePayment={handleRegisterInvoicePayment}
+          onNavigate={setCurrentPage}
+          onShowInvoicesModal={handleShowInvoicesModal}
+          cardSettings={cardSettings}
+          onUpdateCardSettings={handleUpdateCardSettings}
+          onAddCard={handleAddCard}
+          onUpdateCard={handleUpdateCard}
+          payments={invoicePayments}
+          onRefundInvoiceTransaction={handleRefundInvoiceTransaction}
+          onRefundInstallmentGroup={handleRefundInstallmentGroup}
+          accounts={allAccounts}
+          onAddTransaction={handleAddTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
+        />;
+      case 'bank-accounts':
+        return <BankAccountsPage accounts={bankAccounts} onAddAccount={handleAddBankAccount} />;
+      case 'transactions':
+        return <TransactionsPage
+          transactions={transactions}
+          summaries={transactionSummaries}
+          onAddTransaction={handleAddTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
+          accounts={allAccounts}
+          useAggregatedView={true}
+          onViewDetails={async (id) => {
+            const details = await getTransactionDetails(id);
+            return details;
+          }}
+        />;
+      case 'invoices':
+        return <InvoicesPage
+          cards={cards}
+          invoices={invoices}
+          payments={invoicePayments}
+          onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+          onRegisterInvoicePayment={handleRegisterInvoicePayment}
+          onRefundTransaction={handleRefundInvoiceTransaction}
+          onRefundGroup={handleRefundInstallmentGroup}
+        />;
+      case 'reports':
+        return <ReportsPage transactions={transactions} />;
+      case 'budgets':
+        return <BudgetsPage budgets={budgets} transactions={transactions} onAddBudget={handleAddBudget} />;
+      case 'profile':
+        return <ProfilePage user={user} onUpdateUser={handleUpdateUser} />;
+      case 'settings':
+        return <SettingsPage
+          cards={cards}
+          notifications={notifications}
+          recurrences={recurrences}
+          onAddRecurrence={handleAddRecurrence}
+          onToggleRecurrence={handleToggleRecurrence}
+          onDeleteRecurrence={handleDeleteRecurrence}
+          onMarkNotificationRead={handleMarkNotificationRead}
+          onClearNotifications={handleClearNotifications}
+        />;
+      default:
+        return <DashboardPage
+          summary={dashboardSummary}
+          cards={enhancedCards}
+          transactions={transactions}
+          onAddTransaction={handleAddTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
+          onNavigate={setCurrentPage}
+          onShowInvoicesModal={handleShowInvoicesModal}
+          invoices={invoices}
+          onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+          cardSettings={cardSettings}
+          onUpdateCardSettings={handleUpdateCardSettings}
+          accounts={allAccounts}
+          onAddCard={handleAddCard}
+          onUpdateCard={handleUpdateCard}
+        />;
+    }
+  };
+
+  const themeValue = { theme, setTheme };
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    document.body.classList.toggle('dark', theme === 'dark');
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
+
+
   const renderLoadingState = (message: string) => (
     <div className={`${theme === 'dark' ? 'dark bg-neutral-900 text-neutral-200' : 'bg-neutral-50 text-neutral-600'} min-h-screen flex items-center justify-center`}>
       <div className="text-center space-y-4">
@@ -654,15 +810,21 @@ const AppContainer: React.FC = () => {
   );
 
   let content: React.ReactNode;
-  if (authLoading) {
-    content = renderLoadingState('Verificando sua sessão...');
+  if (shouldRenderResetPassword) {
+    content = (
+      <Routes>
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="*" element={<Navigate to="/reset-password" replace />} />
+      </Routes>
+    );
+  } else if (authLoading) {
+    content = renderLoadingState('Verificando sua sessao...');
   } else if (!isAuthenticated) {
     content = (
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<NewLoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -671,14 +833,14 @@ const AppContainer: React.FC = () => {
   } else {
     content = (
       <div className={`flex h-screen font-sans ${theme === 'dark' ? 'dark' : ''}`}>
-        <Sidebar 
-            currentPage={currentPage} 
-            setCurrentPage={setCurrentPage} 
-            user={user} 
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-            overdueCount={invoices.filter(inv => inv.status === InvoiceStatus.Overdue).length}
-            onLogout={() => { void handleLogout(); }}
+        <Sidebar
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          user={user}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          overdueCount={invoices.filter(inv => inv.status === InvoiceStatus.Overdue).length}
+          onLogout={() => { void handleLogout(); }}
         />
         <MainContent onMenuClick={() => setIsSidebarOpen(true)}>
           {renderPage()}

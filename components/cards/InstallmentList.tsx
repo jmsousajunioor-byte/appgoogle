@@ -9,7 +9,7 @@ interface InstallmentListProps {
 
 const InstallmentList: React.FC<InstallmentListProps> = ({ installments }) => {
   if (installments.length === 0) {
-    return <div className="text-center py-10 text-neutral-500 dark:text-neutral-400">Nenhum parcelamento ativo.</div>;
+    return <div className="text-center py-4 text-neutral-500 dark:text-neutral-400">Nenhum parcelamento ativo.</div>;
   }
 
   const totalMonthlyCharge = installments.reduce((sum, item) => sum + item.monthlyCharge, 0);

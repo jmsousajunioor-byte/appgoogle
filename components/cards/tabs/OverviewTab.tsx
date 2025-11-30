@@ -133,9 +133,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               name="invoiceYear"
               value={selectedYear.toString()}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
+              variant="glass"
             >
               {yearOptions.map((year) => (
-                <option key={year} value={year.toString()}>
+                <option key={year} value={year.toString()} className="text-neutral-800 dark:text-neutral-100 bg-white dark:bg-neutral-800">
                   {year}
                 </option>
               ))}
@@ -146,9 +147,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               name="invoiceMonth"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
+              variant="glass"
             >
               {MONTH_OPTIONS.map((month) => (
-                <option key={month.value} value={month.value}>
+                <option key={month.value} value={month.value} className="text-neutral-800 dark:text-neutral-100 bg-white dark:bg-neutral-800">
                   {month.label}
                 </option>
               ))}
@@ -156,9 +158,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
 
-        <div className="mt-4 p-6 bg-white dark:bg-neutral-900 rounded-2xl shadow-md space-y-4">
-          {selectedInvoice ? (
-            <>
+        {selectedInvoice ? (
+          <div className="mt-4 space-y-4">
               <div className="flex justify-between items-baseline">
                 <span className="text-neutral-500 dark:text-neutral-400">
                   Valor
@@ -243,14 +244,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                   Ver Extrato
                 </Button>
               </div>
-            </>
-          ) : (
-            <div className="text-center text-neutral-500 dark:text-neutral-400">
-              Nenhuma fatura encontrada para {selectedMonthLabel}/
-              {selectedYear}.
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-4 text-center text-neutral-500 dark:text-neutral-400">
+            Nenhuma fatura encontrada para {selectedMonthLabel}/
+            {selectedYear}.
+          </div>
+        )}
       </div>
 
       <div>
@@ -258,7 +258,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           Limite do Cartão
         </h3>
 
-        <div className="p-4 bg-white dark:bg-neutral-900 rounded-2xl shadow-md space-y-3">
+        <div className="p-4 space-y-3">
           <ProgressBar value={limitUtilization} />
 
           <div className="flex justify-between text-sm">
@@ -295,7 +295,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           Parcelamentos Futuros
         </h3>
 
-        <div className="p-4 bg-white dark:bg-neutral-900 rounded-2xl shadow-md">
+        <div className="p-4">
           <InstallmentList installments={installments} />
         </div>
       </div>

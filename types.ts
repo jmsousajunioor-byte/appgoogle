@@ -94,7 +94,17 @@ export interface Transaction {
     };
 }
 
-export type NewTransaction = Omit<Transaction, 'id'>;
+export type NewTransaction = Omit<Transaction, 'id'> & {
+  cardTransactionType?: CardTransactionType;
+  recurrenceConfig?: {
+    frequency: 'weekly' | 'monthly' | 'yearly';
+    dayOfPeriod: number;
+    startDate?: string;
+    terminationType?: 'never' | 'on_date' | 'after_occurrences';
+    terminationDate?: string;
+    maxOccurrences?: number;
+  };
+};
 
 export interface InvoiceTransaction {
     id: string;
@@ -129,7 +139,7 @@ export interface Invoice {
   dueDate: string;
   paymentDate?: string;
   status: InvoiceStatus;
-  transactions: InvoiceTransaction[];
+  transactions: (InvoiceTransaction | InvoiceTransactionDetail)[];
   installments: InstallmentGroup[];
   // Quantia já paga desta fatura (opcional, para suportar pagamentos parciais)
   paidAmount?: number;
@@ -152,12 +162,18 @@ export interface RecurringTransaction {
   description: string;
   amount: number;
   category: Category;
-  cardId: string;
-  dayOfMonth: number;
-  active: boolean;
+  cardId?: string;
   startDate: string;
   endDate?: string;
-  lastRunMonth?: string; // yyyy-mm
+  frequency: 'weekly' | 'monthly' | 'yearly';
+  dayOfPeriod: number;
+  status: 'active' | 'paused' | 'cancelled';
+  terminationType: 'never' | 'on_date' | 'after_occurrences';
+  terminationDate?: string;
+  maxOccurrences?: number;
+  occurrencesGenerated?: number;
+  lastGeneratedDate?: string;
+  lastRunMonth?: string;
 }
 
 export type NotificationType = 'due-soon' | 'overdue' | 'limit' | 'payment';
@@ -173,9 +189,10 @@ export interface NotificationItem {
 }
 
 export interface User {
+    id: string;
     name: string;
     email: string;
-    avatarUrl: string;
+    avatarUrl?: string; // Opcional para evitar crashes quando o avatar não estiver disponível
     membership: 'Free' | 'Premium';
 }
 
@@ -197,6 +214,87 @@ export interface Goal {
 }
 export type NewGoal = Omit<Goal, 'id'>;
 
+// ============================================================================
+// AGGREGATED TRANSACTION TYPES (for installment grouping)
+// ============================================================================
+
+// Parent transaction representing the full purchase
+export interface CardTransaction {
+    id: string;
+    userId: string;
+    cardId: string;
+    description: string;
+    totalAmount: number;
+    installmentCount: number;
+    purchaseDate: string;
+    category: Category;
+    createdAt: string;
+    type: CardTransactionType;
+    recurringTransactionId?: string;
+    installmentAmount?: number;
+}
+
+// Individual installment linked to a parent transaction
+export interface CardTransactionInstallment {
+    id: string;
+    transactionId: string;
+    installmentNumber: number;
+    amount: number;
+    dueDate: string;
+    invoiceId?: string;
+    status: 'pending' | 'paid' | 'cancelled';
+    createdAt: string;
+}
+
+// Summary for transaction list view (one item per parent transaction)
+export interface TransactionSummary {
+    id: string;
+    description: string;
+    totalAmount: number;
+    installmentCount: number;
+    installmentAmount: number;
+    firstInstallmentDate: string;
+    lastInstallmentDate: string;
+    purchaseDate: string;
+    type: CardTransactionType;
+    recurringTransactionId?: string;
+    card: {
+        id: string;
+        alias: string;
+    };
+    category: {
+        id: string;
+        name: string;
+    };
+}
+
+// Detailed view of a transaction with all installments
+export interface TransactionDetails extends CardTransaction {
+    installments: CardTransactionInstallment[];
+    card: Card;
+}
+
+// Invoice transaction with parent context for fatura detail view
+export interface InvoiceTransactionDetail {
+    transactionId: string;
+    description: string;
+    totalAmount: number;
+    installmentCount: number;
+    currentInstallmentNumber: number;
+    installmentAmount?: number;
+    currentInstallmentAmount: number;
+    purchaseDate: string;
+    category: Category;
+    card?: Partial<Card>;
+    type?: CardTransactionType;
+    recurringTransactionId?: string;
+}
+
+export type NewCardTransaction = Omit<CardTransaction, 'id' | 'userId' | 'createdAt'>;
+
 
 export type Page = 'dashboard' | 'cards-dashboard' | 'credit-cards' | 'bank-accounts' | 'transactions' | 'invoices' | 'reports' | 'budgets' | 'profile' | 'settings';
 export type Theme = 'light' | 'dark';
+
+// Tipo do agrupamento de transações de cartão
+export type CardTransactionType = 'SINGLE' | 'INSTALLMENT' | 'RECURRING';

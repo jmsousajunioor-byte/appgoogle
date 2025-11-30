@@ -21,25 +21,29 @@ const CardGrid: React.FC<CardGridProps> = ({ cards, onCardClick }) => {
         const remainingDays = daysRemaining(card.dueDate);
         
         return (
-          <div key={card.id} className="bg-white dark:bg-neutral-900 p-6 rounded-3xl shadow-lg hover:shadow-2xl transition-shadow duration-300 flex flex-col space-y-4">
+          <div 
+            id={`card-container-${card.id}`}
+            key={card.id} 
+            className="bg-white/25 rounded-[19px] shadow-[inset_0px_0px_11.600000381469727px_2px_rgba(207,207,207,1.00)] border border-white backdrop-blur-[0.5px] p-6 flex flex-col space-y-4 transition-all duration-300 hover:bg-white/35"
+          >
             <RealisticCard card={card} onClick={() => onCardClick(card)} />
             <div className="space-y-3 pt-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-neutral-500 dark:text-neutral-400">Fatura Atual</span>
-                <span className="font-mono font-bold text-lg text-neutral-800 dark:text-neutral-100">{formatCurrency(card.currentInvoiceAmount)}</span>
+                <span className="text-sm text-neutral-600 dark:text-white/70">Fatura Atual</span>
+                <span className="font-mono font-bold text-lg text-neutral-800 dark:text-white">{formatCurrency(card.currentInvoiceAmount)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-neutral-500 dark:text-neutral-400">Limite Disponível</span>
-                <span className="font-mono text-neutral-600 dark:text-neutral-300">{formatCurrency(card.availableLimit)}</span>
+                <span className="text-sm text-neutral-600 dark:text-white/70">Limite Disponível</span>
+                <span className="font-mono text-neutral-700 dark:text-white/90">{formatCurrency(card.availableLimit)}</span>
               </div>
                <div className="flex justify-between items-center text-sm">
-                <span className="text-neutral-500 dark:text-neutral-400">Vencimento</span>
-                <span className={`font-bold ${remainingDays < 5 ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'}`}>
+                <span className="text-neutral-600 dark:text-white/70">Vencimento</span>
+                <span className={`font-bold ${remainingDays < 5 ? 'text-red-500 dark:text-red-400' : 'text-neutral-700 dark:text-white/90'}`}>
                   {new Date(card.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} ({remainingDays} dias)
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-neutral-500 dark:text-neutral-400">Status</span>
+                <span className="text-sm text-neutral-600 dark:text-white/70">Status</span>
                 <Badge status={card.invoiceStatus} />
               </div>
             </div>

@@ -4,11 +4,12 @@
 
 :root {
   font-family: 'Roboto', sans-serif;
+  --app-bg-light: #dbdbdb;
 }
 
 body {
   min-height: 100vh;
-  background-color: #f9fafb;
+  background-color: var(--app-bg-light);
   color: #1f2937;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -91,6 +92,46 @@ body {
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid hsl(var(--border) / 0.25);
   }
+
+  /* Light-mode glass surface utility */
+  .glass-light {
+    background: rgba(255, 255, 255, 0.64);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    color: #1f2937;
+  }
+
+  /* Improve contrast for commonly used muted text classes when placed on glass-light */
+  .glass-light .text-neutral-500 {
+    color: #6b7280 !important;
+  }
+
+  .glass-light .text-neutral-600 {
+    color: #4b5563 !important;
+  }
+
+  /* Make elements inside modal-glass transparent to show glass effect */
+  /* .modal-glass [class*="bg-white"],
+  .modal-glass [class*="bg-neutral-100"],
+  .modal-glass .glass-light,
+  .modal-glass .dark\:glass {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    backdrop-filter: blur(10px) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  }
+
+  .dark .modal-glass [class*="bg-white"],
+  .dark .modal-glass [class*="bg-neutral"],
+  .dark .modal-glass .glass-light,
+  .dark .modal-glass .dark\:glass {
+    background-color: rgba(23, 23, 23, 0.3) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  } */
 
   @keyframes float {
     0%, 100% {
@@ -192,5 +233,77 @@ body {
 
   .animate-twinkle {
     animation: twinkle 3s ease-in-out infinite;
+  }
+}
+
+@layer components {
+  /* Card Glass Container - Glassmorphism effect for card grid */
+  .card-glass-container {
+    background: rgba(255, 255, 255, 0.4);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.06), 
+      0 8px 32px rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  
+  .card-glass-container:hover {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(255, 255, 255, 0.6);
+    box-shadow: 
+      0 8px 24px rgba(0, 0, 0, 0.08), 
+      0 12px 40px rgba(0, 0, 0, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .dark .card-glass-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.2), 
+      0 8px 32px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .dark .card-glass-container:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 
+      0 8px 24px rgba(0, 0, 0, 0.25), 
+      0 12px 40px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .glass-panel {
+    @apply rounded-3xl p-5 shadow-2xl backdrop-blur-xl text-neutral-800;
+    background: rgba(255, 255, 255, 0.64);
+    border: 0;
+    outline: none;
+  }
+  .dark .glass-panel {
+    @apply text-white;
+    background: hsl(var(--card) / 0.25);
+    border: 0;
+    outline: none;
+  }
+  .glass-apply-all :where(div,section,header,footer,aside,article,ul,li,form,fieldset){
+    background: transparent;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 0 !important;
+    outline: none !important;
+  }
+  .glass-apply-all :where(select,input,textarea){
+    background: transparent;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 0 !important;
+    outline: none !important;
+  }
+  .glass-apply-all :where(div,select,input,textarea):is(:hover,:focus,:active){
+    border: 0 !important;
+    outline: none !important;
   }
 }

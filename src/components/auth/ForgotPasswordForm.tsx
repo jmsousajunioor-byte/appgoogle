@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Mail, ArrowLeft, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { forgotPasswordSchema } from '@/lib/validation';
-import { forgotPassword } from '@/lib/api';
+import { supabaseClient } from '@/lib/supabaseClient';
 import useToast from '@/hooks/useToast';
+import { CosmicAuthLayout } from './CosmicAuthLayout';
 
 export const ForgotPasswordForm: React.FC = () => {
   const { toast } = useToast();
@@ -22,19 +22,24 @@ export const ForgotPasswordForm: React.FC = () => {
 
     try {
       const validated = forgotPasswordSchema.parse({ email });
-      const response = await forgotPassword(validated);
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(validated.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
-      if (response.success) {
+      if (error) {
+        toast({
+          title: '❌ Erro',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } else {
         setEmailSent(true);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('last_recovery_email', validated.email);
+        }
         toast({
           title: '✅ Email enviado!',
           description: 'Verifique sua caixa de entrada para redefinir sua senha.',
-        });
-      } else {
-        toast({
-          title: '❌ Erro',
-          description: response.message,
-          variant: 'destructive',
         });
       }
     } catch (error: any) {
@@ -57,37 +62,34 @@ export const ForgotPasswordForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gradient-to-br from-purple-900 via-blue-900 to-pink-900 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="stars" />
-        <div className="stars2" />
-        <div className="stars3" />
-      </div>
-
-      <Card className="w-full max-w-md relative z-10 bg-black/40 backdrop-blur-xl border-purple-500/50 shadow-2xl shadow-purple-500/20 rounded-3xl animate-fadeIn">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/50">
-              <span className="text-3xl">{emailSent ? '✅' : '🔑'}</span>
-            </div>
+    <CosmicAuthLayout>
+      <div className="w-full max-w-md space-y-8 animate-fade-in-up">
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-3 rounded-full bg-white/5 px-4 py-2 backdrop-blur">
+            <Sparkles className="h-6 w-6 text-cosmic-pink animate-glow-pulse" />
+            <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground/80">Recuperação de Conta</p>
           </div>
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            {emailSent ? 'Email Enviado!' : 'Esqueceu sua senha?'}
-          </CardTitle>
-          <CardDescription className="text-gray-300">
-            {emailSent ? 'Enviamos instruções para redefinir sua senha' : 'Digite seu email para receber instruções de recuperação'}
-          </CardDescription>
-        </CardHeader>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold text-white">
+              {emailSent ? 'Email Enviado!' : 'Esqueceu sua senha?'}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {emailSent
+                ? 'Enviamos instruções para redefinir sua senha'
+                : 'Digite seu email para receber instruções de recuperação'}
+            </p>
+          </div>
+        </div>
 
-        <CardContent>
+        <div className="glass rounded-[32px] border border-border/35 bg-card/40 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_60px_hsl(var(--cosmic-purple)/0.2)]">
           {emailSent ? (
-            <div className="space-y-4">
-              <div className="bg-green-500/10 border border-green-500/50 rounded-lg p-4 flex items-start space-x-3">
-                <CheckCircle2 className="h-6 w-6 text-green-400 flex-shrink-0 mt-0.5" />
+            <div className="space-y-6">
+              <div className="flex items-start gap-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-4">
+                <CheckCircle2 className="h-6 w-6 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-green-400">Email enviado com sucesso!</p>
-                  <p className="text-sm text-gray-300">
-                    Verifique sua caixa de entrada em <strong>{email}</strong>. Se não encontrar, veja o spam.
+                  <p className="text-sm font-medium text-emerald-400">Email enviado com sucesso!</p>
+                  <p className="text-sm text-muted-foreground">
+                    Verifique sua caixa de entrada em <strong className="text-white">{email}</strong>. Se não encontrar, veja o spam.
                   </p>
                 </div>
               </div>
@@ -95,45 +97,48 @@ export const ForgotPasswordForm: React.FC = () => {
                 onClick={() => {
                   setEmailSent(false);
                   setEmail('');
+                  if (typeof window !== 'undefined') {
+                    window.localStorage.removeItem('last_recovery_email');
+                  }
                 }}
                 variant="outline"
-                className="w-full border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                className="w-full h-12 border-border/40 bg-white/5 text-foreground hover:border-cosmic-purple/60 hover:text-white"
               >
                 Enviar novamente
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium text-gray-200">
+                <label htmlFor="email" className="text-sm font-medium text-foreground">
                   Email
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-purple-400" />
+                <div className="relative group">
+                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-cosmic-blue" />
                   <Input
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="seu@email.com"
+                    placeholder="voce@email.com"
                     value={email}
                     onChange={event => {
                       setEmail(event.target.value);
                       if (errors.email) setErrors({});
                     }}
-                    className={`pl-10 bg-white/10 border-purple-500/50 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-purple-400/50 ${
-                      errors.email ? 'border-red-500' : ''
-                    }`}
+                    autoComplete="email"
+                    className={`pl-11 h-12 bg-input/50 backdrop-blur-sm border-border/40 text-foreground placeholder:text-muted-foreground/70 focus-visible:border-cosmic-blue/60 focus-visible:ring-cosmic-blue/30 ${errors.email ? 'border-destructive animate-shake' : ''
+                      }`}
                     disabled={loading}
                     autoFocus
                   />
                 </div>
-                {errors.email && <p className="text-sm text-red-400">{errors.email}</p>}
+                {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
               </div>
 
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold py-6 rounded-xl shadow-lg shadow-purple-500/50 transition-all duration-300 hover:scale-105 hover:shadow-purple-500/70"
+                className="w-full h-12 text-base font-semibold tracking-wide shadow-[0_15px_45px_rgba(79,70,229,0.35)]"
               >
                 {loading ? (
                   <>
@@ -146,47 +151,19 @@ export const ForgotPasswordForm: React.FC = () => {
               </Button>
             </form>
           )}
-        </CardContent>
+        </div>
 
-        <CardFooter className="flex flex-col space-y-4">
+        <div className="text-center">
           <Link
             to="/login"
-            className="flex items-center justify-center space-x-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-cosmic-blue hover:text-cosmic-pink transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Voltar para o login</span>
           </Link>
-        </CardFooter>
-      </Card>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn { animation: fadeIn 0.6s ease-out; }
-        .stars, .stars2, .stars3 {
-          position: absolute; inset: 0;
-          background-image:
-            radial-gradient(2px 2px at 20px 30px, white, rgba(0,0,0,0)),
-            radial-gradient(2px 2px at 60px 70px, white, rgba(0,0,0,0)),
-            radial-gradient(1px 1px at 50px 50px, white, rgba(0,0,0,0)),
-            radial-gradient(1px 1px at 130px 80px, white, rgba(0,0,0,0)),
-            radial-gradient(2px 2px at 90px 10px, white, rgba(0,0,0,0));
-          background-repeat: repeat;
-          background-size: 200px 200px;
-          animation: zoom 20s infinite;
-          opacity: 0.5;
-        }
-        .stars2 { animation: zoom 40s infinite; opacity: 0.3; }
-        .stars3 { animation: zoom 60s infinite; opacity: 0.2; }
-        @keyframes zoom {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.5); }
-          100% { transform: scale(1); }
-        }
-      `}</style>
-    </div>
+        </div>
+      </div>
+    </CosmicAuthLayout>
   );
 };
 

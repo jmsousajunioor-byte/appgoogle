@@ -18,4 +18,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // RESUMO DO BUG PKCE:
+    // Quando o flowType nao era informado o @supabase/auth-js passou a tentar PKCE
+    // automaticamente, mas o app nunca salvava um code_verifier para os links de
+    // recuperacao. O resultado eram chamadas /token?grant_type=pkce com parametros
+    // vazios, derrubando o reset. Forcamos o fluxo implicit para receber tokens
+    // direto e manter o comportamento esperado no Vercel.
+    flowType: 'implicit',
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
